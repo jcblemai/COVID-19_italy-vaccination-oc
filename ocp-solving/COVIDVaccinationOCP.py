@@ -1,18 +1,13 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-import datetime
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 import casadi as ca
 import casadi.tools as cat
-import time
 import copy
 import networkx
-from scipy.integrate import solve_ivp
-
-# from SQPmethod import *
 
 if "Agg" not in mpl.get_backend():
     mpl.interactive(True)
@@ -21,102 +16,6 @@ plt.ion()
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node):
-    """ 
-       The one that work ^^
-    """
-    I, R, V = x[0], x[1], x[2], x[3]
-    v = u[0]
-    J = cov[0]
-    sigma = p[0]
-    beta = p[1]
-    mu_b = p[2]
-    gamma = p[3]
-    theta = p[4]
-    lam = p[5]
-    mu = p[6]
-    rho_v = p[7]
-    rho = p[8]
-    alpha = p[9]
-    r = p[10]
-    m = p[11]
-
-    foi = beta * ((1 - m) * B / (1 + B) + m * mob)
-    foi *= ca.atan(1e5 * foi) / np.pi + 0.5
-    # foi += 5e-5
-    # foi = beta * mob      # Mobility term now has everything
-    rhs = [None] * 4
-
-    S = pop_node - R - V - I
-    # S *= ca.atan(1e4*S)/np.pi+0.5
-    # S += 3.2e-5
-
-    dI = sigma * foi * S - (gamma + mu) * I
-    dI *= ca.atan(1e4 * (I)) / np.pi + 0.5
-    # dI += 5e-4
-
-    dR = (1 - sigma) * foi * S + gamma * I - (
-                rho + mu + v / (pop_node - V - I + 1 + 1e2 * ca.exp(-1e2 * (pop_node - V - I - 1)))) * R
-    dR *= ca.atan(1e4 * (R)) / np.pi + 0.5
-    # dR += 5e-4
-
-    dB = -mu_b * B + theta * I * (1. + lam * J)
-    dB *= ca.atan(1e4 * B) / np.pi + 0.5
-    dB += 5e-4
-
-    dV = v * (pop_node - V - I) / (pop_node - V - I + 1 + 1e2 * ca.exp(-1e2 * (pop_node - V - I - 1))) - (
-                rho_v + mu) * V
-    dV *= ca.atan(1e4 * (V)) / np.pi + 0.5
-    # dV += 5e-4
-
-    rhs[0] = dI
-    rhs[1] = dR
-    rhs[2] = -mu_b * B + theta * I * (1. + lam * J)
-    rhs[3] = dV
-
-    rhs_ell = sigma * foi * S
-
-    return rhs, rhs_ell
-
-
-def rhs_py_good(t, x, u, cov, p, mob, pop_node):
-    """ 
-       The one that work ^^
-    """
-    I, R, B, V = x[0], x[1], x[2], x[3]
-    v = u[0]
-    J = cov[0]
-    sigma = p[0]
-    beta = p[1]
-    mu_b = p[2]
-    gamma = p[3]
-    theta = p[4]
-    lam = p[5]
-    mu = p[6]
-    rho_v = p[7]
-    rho = p[8]
-    alpha = p[9]
-    r = p[10]
-    m = p[11]
-
-    foi = beta * ((1 - m) * B / (1 + B) + m * mob)
-    foi *= ca.atan(1e7 * foi) / np.pi + 0.5
-    foi += 4e-8
-    # foi = beta * mob      # Mobility term now has everything
-    rhs = [None] * 4
-    S = pop_node - R - V - I
-    rhs[0] = sigma * foi * S - (gamma + mu) * I
-    rhs[1] = (1 - sigma) * foi * S + gamma * I - (
-                rho + mu + v / (pop_node - V - I + 1 + 1e4 * ca.exp(-1e4 * (pop_node - V - I - 1)))) * R
-    rhs[2] = -mu_b * B + theta * I * (1. + lam * J)
-    rhs[3] = v * (pop_node - V - I) / (pop_node - V - I + 1 + 1e4 * ca.exp(-1e4 * (pop_node - V - I - 1))) - (
-                rho_v + mu) * V
-
-    rhs_ell = sigma * foi * S
-
-    return rhs, rhs_ell
-
-
-def rhs_py_notricks(t, x, u, cov, p, mob, pop_node):
     """ 
         same  as rhs_py without any tricks for stability. Is not used.
     """
@@ -136,7 +35,7 @@ def rhs_py_notricks(t, x, u, cov, p, mob, pop_node):
     r = p[10]
     m = p[11]
 
-    foi = beta * ((1 - m) * B / (1 + B) + m * mob)
+    foi = beta * ((1 - m) * I / (1 + I) + m * mob)
 
     rhs = [None] * 4
     S = pop_node - R - V - I
@@ -167,7 +66,7 @@ def rhs_py_total(t, x, u, covar, p, M, c, pop_node):
         C.append(covar[i * nc:(i + 1) * nc])
     rhs = np.array([])
     for i in range(M):
-        mob_i = sum(c[i, j] * X[j][2] / (1 + X[j][2]) for j in range(M))
+        mob_i = sum(c[i, j] * X[j][0] for j in range(M))
         rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, mob_i, pop_node[i])[0])
     return rhs
 
@@ -232,7 +131,7 @@ def rk4_mob(dt, states, controls, covar, params, M, c, n_int_steps, mob, pop_nod
     return x_
 
 
-class plot_iterates(ca.Callback):
+class PlotIterates(ca.Callback):
     def __init__(self, name, nx, ng, np, ind_to_plot, T, N, V, ind2name, mobility, pos_node, pop_node, scaling,
                  opts={}):
         ca.Callback.__init__(self)
@@ -410,7 +309,7 @@ def mobility_graph(mobility, ind2name, pos_node, pop_node, opt, N):
 
 
 class COVIDVaccinationOCP:
-    def __init__(self, N, T, n_int_steps, scaling, setup, model_params, obj_params, plot_iterates_flag=False,
+    def __init__(self, N, T, n_int_steps, scaling, setup, model_params, obj_params, plot_iterates=False,
                  optimize=True):
         self.N = N
         self.T = T
@@ -427,12 +326,10 @@ class COVIDVaccinationOCP:
         self.pop_node = pop_node * scaling
         M = setup.nnodes
         mobility = setup.mobility
-        ic = copy.deepcopy(setup.ic)
-        ic['I'] = ic['I'] * scaling
-        ic['R'] = ic['R'] * scaling
-        ic['V'] = ic['V'] * scaling
-
-        self.ic = ic  # scaled by scaling
+        self.ic = copy.deepcopy(setup.ic)
+        self.ic['I'] = self.ic['I'] * scaling
+        self.ic['R'] = self.ic['R'] * scaling
+        self.ic['V'] = self.ic['V'] * scaling
 
         print(f'Building OCP with {M} nodes')
 
@@ -458,8 +355,8 @@ class COVIDVaccinationOCP:
         pnum = [sigma, beta, mu_b, gamma, theta, lam, mu, rho_v, rho, alpha, r, m, scale_ell, scale_If, scale_v]
 
         # ---- decision variables ---------
-        states = cat.struct_symSX(['I', 'R', 'V'])
-        [I, R, V] = states[...]
+        states = cat.struct_symSX(['I', 'R', 'B', 'V'])
+        [I, R, B, V] = states[...]
 
         controls = cat.struct_symSX(['v', 'mob'])
         [v, mob] = controls[...]
@@ -499,7 +396,7 @@ class COVIDVaccinationOCP:
         k4, k4ell = frhs(states + dt * k3, controls, covar, params, pop_nodeSX)
         x_next = states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
         ell_next = dt / 6 * (
-                    k1ell + 2 * k2ell + 2 * k3ell + k4ell)  # No need for because we sum it week by week few lines below.
+                k1ell + 2 * k2ell + 2 * k3ell + k4ell)  # No need for because we sum it week by week few lines below.
 
         rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
@@ -586,9 +483,9 @@ class COVIDVaccinationOCP:
             # R0 /= Params['p','mu_b']*( Params['p','gamma'] + Params['p','mu'] + Params['p','alpha'] )
             # f += Params['p','scale_If']*Vars['x',i,-1,'I']
             f += Params['p', 'scale_If'] * Params['p', 'sigma'] * (
-                        self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
+                    self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
             cdot_T += Params['p', 'scale_If'] * Params['p', 'sigma'] * (
-                        self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
+                    self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
 
         g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
@@ -616,7 +513,7 @@ class COVIDVaccinationOCP:
         # Set initial conditions as constraints
         for name in states.keys():
             for i in range(M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = ic[name][i]
+                lbx['x', i, 0, name] = ubx['x', i, 0, name] = self.ic[name][i]
 
         # NLOP arguments:
         # 'x' : variable names to optimize: here states and control
@@ -627,7 +524,7 @@ class COVIDVaccinationOCP:
         self.nlpFun = ca.Function('nlpFun', [Vars, Params], [f, g])
         self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
 
-        plotIterates = plot_iterates('plot_iterates', Vars.size, g.size, Params.size, ind_to_plot, T, N, Vars, ind2name,
+        plotIterates = PlotIterates('plot_iterates', Vars.size, g.size, Params.size, ind_to_plot, T, N, Vars, ind2name,
                                      mobility, self.pos_node, self.pop_node, self.scaling)
         self.plotIterates = plotIterates
 
@@ -642,7 +539,7 @@ class COVIDVaccinationOCP:
         # options['ipopt']['slack_bound_push'] = 1e-6
         # options['ipopt']['hessian_constant'] = 'yes'
         # options['ipopt']["tol"] = 1e-8
-        if plot_iterates_flag == True:
+        if plot_iterates == True:
             options["iteration_callback"] = plotIterates
         self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
 
@@ -663,7 +560,7 @@ class COVIDVaccinationOCP:
         for i, name in enumerate(states.keys()):
             for k in range(N + 1):
                 # init['x',:,k,name] = sol0.y[i,k]
-                init['x', :, k, name] = ic[name][i]
+                init['x', :, k, name] = self.ic[name][i]
         init['u'] = 0.
 
         arg = {}
@@ -683,7 +580,7 @@ class COVIDVaccinationOCP:
 
         self.arg = arg
 
-        print('Done builing OCP, ready for use.')
+        print('Done building OCP, ready for use.')
 
     def solveOCP(self):
 

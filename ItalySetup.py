@@ -27,6 +27,7 @@ class ItalySetup:
 
         ic = {'I': np.zeros(nnodes),
               'R': np.zeros(nnodes),
+              'B': np.zeros(nnodes),
               'V': np.zeros(nnodes)}
         seeding_place = 'Genova'
         ic['I'][ind2name.index(seeding_place)] = 0.05 * pop_node[ind2name.index(seeding_place)]
