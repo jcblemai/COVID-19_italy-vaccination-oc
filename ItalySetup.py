@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import datetime
+import geopandas as gpd
 
 plt.ion()
 
@@ -23,7 +24,6 @@ class ItalySetup:
         mobility = np.loadtxt('italy-data/mobility.txt')
         mobility = mobility[:problem_size, :problem_size]
         pop_node = geodata.population.to_numpy()
-        pos_node = np.zeros((nnodes, 2))
 
         ic = {'I': np.zeros(nnodes),
               'R': np.zeros(nnodes),
@@ -40,7 +40,6 @@ class ItalySetup:
 
         self.ind_to_plot = [ind2name.index(place) for place in to_plot]
         self.pop_node = pop_node
-        self.pos_node = pos_node
         self.nnodes = len(ind2name)
 
         # FIX: This is to be set manualy in the R code.
@@ -48,19 +47,25 @@ class ItalySetup:
         self.end_date = datetime.date(2018, 12, 31)
         self.end_sim = datetime.date(2019, 12, 31)
 
+        shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp')
+        self.shp = shp.merge(geodata)
+        self.pos_node = np.zeros((nnodes, 2))
+        self.pos_node[:, 0] = self.shp.centroid.x
+        self.pos_node[:, 1] = self.shp.centroid.y
+
         print(f'Created setup with {self.nnodes} nodes.')
 
 
 if __name__ == '__main__':
     # Variables passed to R
-    setup = ItalySetup(10)
-    ind2name = setup.ind2name
-    mobility = setup.mobility
-    ic = setup.ic
-    ind_to_plot = setup.ind_to_plot
-    pop_node = setup.pop_node
-    pos_node = setup.pos_node
-    nnodes = setup.nnodes
+    s = ItalySetup(10)
+    ind2name = s.ind2name
+    mobility = s.mobility
+    ic = s.ic
+    ind_to_plot = s.ind_to_plot
+    pop_node = s.pop_node
+    pos_node = s.pos_node
+    nnodes = s.nnodes
 
 # print(ocp.arg['p']['p','scale_v']*sum( y**2 for x in opt['u',:,:,'v'] for y in x ))
 # print(ocp.arg['p']['p','scale_ell']*( y for x in opt['x',:,:-1,'I'] for y in x ))
