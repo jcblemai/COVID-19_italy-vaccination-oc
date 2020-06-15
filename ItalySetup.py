@@ -6,7 +6,7 @@ import datetime
 plt.ion()
 
 
-class ItalySetup():
+class ItalySetup:
     def __init__(self, problem_size='full'):  # small (M=10),  medium or large (M=68)
 
         geodata = pd.read_csv('italy-data/geodata.csv')
