@@ -30,7 +30,7 @@ class ItalySetup:
               'B': np.zeros(nnodes),
               'V': np.zeros(nnodes)}
         seeding_place = 'Genova'
-        ic['I'][ind2name.index(seeding_place)] = 0.05 * pop_node[ind2name.index(seeding_place)]
+        ic['I'][ind2name.index(seeding_place)] = 10#0.05 * pop_node[ind2name.index(seeding_place)]
 
         to_plot = ['Torino', 'Genova']
 
@@ -53,12 +53,12 @@ class ItalySetup:
         self.pos_node[:, 0] = self.shp.centroid.x
         self.pos_node[:, 1] = self.shp.centroid.y
 
-        print(f'Created setup with {self.nnodes} nodes.')
+        print(f'Loaded Italy Setup with {self.nnodes} nodes.')
 
 
 if __name__ == '__main__':
     # Variables passed to R
-    s = ItalySetup(10)
+    s = ItalySetup(13)
     ind2name = s.ind2name
     mobility = s.mobility
     ic = s.ic

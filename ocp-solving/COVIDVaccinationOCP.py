@@ -41,7 +41,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     S = pop_node - R - V - I
     rhs[0] = sigma * foi * S - (gamma + mu) * I
     rhs[1] = (1 - sigma) * foi * S + gamma * I - (rho + mu + v / (pop_node - V - I + 1)) * R
-    rhs[2] = -mu_b * B + theta * I * (1. + lam * J)
+    rhs[2] = 0#-mu_b * B + theta * I * (1. + lam * J)
     rhs[3] = v * (pop_node - V - I) / (pop_node - V - I + 1) - (rho_v + mu) * V
 
     rhs_ell = sigma * foi * S
@@ -66,7 +66,7 @@ def rhs_py_total(t, x, u, covar, p, M, c, pop_node):
         C.append(covar[i * nc:(i + 1) * nc])
     rhs = np.array([])
     for i in range(M):
-        mob_i = sum(c[i, j] * X[j][0] for j in range(M))
+        mob_i = sum(c[i, j] * X[j][2] for j in range(M))   # TODO
         rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, mob_i, pop_node[i])[0])
     return rhs
 
@@ -417,7 +417,7 @@ class COVIDVaccinationOCP:
         # opts = {'tf':T/N, 'number_of_finite_elements':n_int_steps}
         # F = ca.integrator('F', 'rk', dae, opts)
 
-        # BUG TODO Isn't this a double multiliation by the scale parameter since ell is already multiplied ?
+        # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
                           [scale_ell * ell + scale_v * v * v, scale_ell * ell,
                            scale_v * v * v])  # Very dependent on regularization factor

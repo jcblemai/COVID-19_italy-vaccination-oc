@@ -12,7 +12,7 @@ from COVIDVaccinationOCP import COVIDVaccinationOCP, rk4_mob, rhs_py_total
 from ItalySetup import ItalySetup
 from scipy.integrate import solve_ivp
 
-s = ItalySetup(13)
+s = ItalySetup(problem_size=13)
 
 ocp_params = {'N': 52,  # Number of control time interval
               'T': 52 * 7,  # N * 7
@@ -169,7 +169,8 @@ for k in range(N):
     # x_ = rk4(dt,sim1[:,-1],uk, covk, pnum, s.nnodes, s.mobility,n_int_steps,s.pop_node*scaling)
     sol0 = solve_ivp(lambda t, y: rhs_py_total(t, y, uk, covk, pnum, s.nnodes, s.mobility, s.pop_node * scaling),
                      [0, T / N], sim[:, -1], rtol=1e-8, atol=1e-8)
-    # sol1 = solve_ivp(lambda t,y: rhs_py_total_mob(t, y, uk, covk, pnum, s.nnodes, s.mobility, mob, s.pop_node*scaling),[0,T/N], sim2[:,-1],rtol=1e-8,atol=1e-8)
+    # sol1 = solve_ivp(lambda t,y: rhs_py_total_mob(t, y, uk, covk, pnum, s.nnodes,
+    # s.mobility, mob, s.pop_node*scaling),[0,T/N], sim2[:,-1],rtol=1e-8,atol=1e-8)
 
     sim = np.append(sim, np.array([sol0['y'][:, -1]]).T, axis=1)
     # sim1 = np.append( sim1, np.array([x_]).T, axis=1)
