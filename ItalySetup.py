@@ -45,9 +45,15 @@ class ItalySetup:
         self.nnodes = len(ind2name)
 
         # FIX: This is to be set manualy in the R code.
-        self.start_date = datetime.date(2017, 12, 31)  # fix lentgh
-        self.end_date = datetime.date(2018, 12, 31)
-        self.end_sim = datetime.date(2019, 12, 31)
+        self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
+        self.end_date = datetime.date(2020, 7, 1)
+        #self.end_sim = datetime.date(2019, 12, 31)
+
+        mobility_ts = pd.read_csv('italy-data/mobility_ts.csv', header = None, index_col = 0, parse_dates=True)
+        mobility_ts.columns = np.arange(len(mobility_ts.columns))
+        mobility_ts.index = mobility_ts.index.rename('date')
+        mobility_ts = mobility_ts.iloc[:,:problem_size]
+
 
         shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp')
         self.shp = shp.merge(geodata)
