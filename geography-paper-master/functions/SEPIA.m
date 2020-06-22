@@ -64,12 +64,11 @@ beta_ratio = interp1(V.tbeta,beta_p',V.time_model)';
         % C_I is an idenity matrix (no extra node mobility for the I class)
         C = (r*V.p.*mob_ratio(:,i_t)).*V.q; %compute off diagonal elements
         C(1:n+1:end) = 1-(sum(C,2)-diag(C));%set diagonal imposing row-stocasticity
-        
         % Force of infection lambda (this formulation is a numerically faster simplification of
         % the equation reported in the preprint text valid under the
         % assumptions listed above for the computation of C
         lambda=C*((C'*(betaP0*beta_ratio(:,i_t).*(P+epsilonA*A))+epsilonI*betaP0*beta_ratio(:,i_t).*I)./(C'*(S+E+P+R+A)+I));
-        
+        disp(size(C))
         % Model equations
         dSdt = -lambda.*S;
         dEdt = lambda.*S-deltaE*E;
