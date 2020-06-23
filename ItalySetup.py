@@ -52,7 +52,7 @@ class ItalySetup:
         mobility_ts = pd.read_csv('italy-data/mobility_ts.csv', header = None, index_col = 0, parse_dates=True)
         mobility_ts.columns = np.arange(len(mobility_ts.columns))
         mobility_ts.index = mobility_ts.index.rename('date')
-        mobility_ts = mobility_ts.iloc[:,:problem_size]
+        self.mobility_ts = mobility_ts.iloc[:,:problem_size]
 
 
         shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp')
