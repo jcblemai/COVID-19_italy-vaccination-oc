@@ -27,7 +27,7 @@ class ItalySetup:
 
 
         ic = {}
-        states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R']
+        states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
         for st in states:
             ic[st] = np.zeros(nnodes)
         ic['S'] = pop_node

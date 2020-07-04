@@ -16,35 +16,28 @@ plt.ion()
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node):
-    """ 
-        same  as rhs_py without any tricks for stability. Is not used.
-    """
-    I, R, B, V = x[0], x[1], x[2], x[3]
+    S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
     v = u[0]
-    J = cov[0]
-    sigma = p[0]
-    beta = p[1]
-    mu_b = p[2]
-    gamma = p[3]
-    theta = p[4]
-    lam = p[5]
-    mu = p[6]
-    rho_v = p[7]
-    rho = p[8]
-    alpha = p[9]
-    r = p[10]
-    m = p[11]
 
-    foi = beta * ((1 - m) * I / (1 + I) + m * mob)
-
-    rhs = [None] * 4
-    S = pop_node - R - V - I
-    rhs[0] = sigma * foi * S - (gamma + mu) * I
-    rhs[1] = (1 - sigma) * foi * S + gamma * I - (rho + mu + v / (pop_node - V - I + 1)) * R
-    rhs[2] = 0#-mu_b * B + theta * I * (1. + lam * J)
-    rhs[3] = v * (pop_node - V - I) / (pop_node - V - I + 1) - (rho_v + mu) * V
-
-    rhs_ell = sigma * foi * S
+    foi = mob
+    rhs = [None] * nx
+    if S < 0:
+        S = 0
+        v = 0
+    vaccrate = v / (S + E + P + A + Q + H + R)
+    rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
+    rhs[1] = foi * S - deltaE * E;  # E
+    rhs[2] = deltaE * E - deltaP * P;  # P
+    rhs[3] = sigma * deltaP * P - (eta + gammaI + alphaI) * I;  # I
+    rhs[4] = (1 - sigma) * deltaP * P - gammaA * A;  # A
+    rhs[5] = zeta * eta * I - gammaQ * Q;  # Q
+    rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H;  # H
+    rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q;  # R
+    rhs[8] = vaccrate * S - gammaV * V  # V
+    rhs_ell = [None] * 3
+    rhs_ell[0] = gammaH * H;  # recovered from the hospital
+    rhs_ell[1] = alphaH * H;  # total death
+    rhs_ell[2] = (1 - zeta) * eta * I;  # cumulative hospitalized cases
 
     return rhs, rhs_ell
 
@@ -54,20 +47,23 @@ def rhs_py_total(t, x, u, covar, p, M, c, pop_node):
         Give the complete rhs of the equation, plugin-in the mobility as it is usually implemented. 
         I think it works well
     """
-    nx = 4
     nu = 1
     nc = 1
-    X = []
+    X = np.zeros((M, nx))
     U = []
-    C = []
+    # C = []
     for i in range(M):  # Uses flat vectors
-        X.append(x[i * nx:(i + 1) * nx])
+        # X.append(x[i * nx:(i + 1) * nx])
+
+        X[i, :] = x[i * nx:(i + 1) * nx]
         U.append(u[i * nu:(i + 1) * nu])
-        C.append(covar[i * nc:(i + 1) * nc])
+        # C.append(covar[i * nc:(i + 1) * nc])
     rhs = np.array([])
     for i in range(M):
-        mob_i = sum(c[i, j] * X[j][2] for j in range(M))   # TODO
-        rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, mob_i, pop_node[i])[0])
+        foi = C @ ((C.T @ (betaP0 * betaR * (X[:, P] + epsilonA * X[:, A])) + epsilonI * betaP0 * betaR * X[:, I]) / \
+                   (C.T @ (X[:, S] + X[:, E] + X[:, P] + X[:, R] + X[:, A]) + X[:, I]))  # TODO V here
+        rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, foi[i], pop_node[i])[0])
+    # foinomob.append(foi)
     return rhs
 
 
@@ -76,7 +72,6 @@ def rhs_py_total_mob(t, x, u, covar, p, M, c, mob, pop_node):
         Same as rhs_py_total, however the mobility as to be provided as an array. It allows to better 
         reproduce what the ocp is doing. Works well.
     """
-    nx = 4
     nu = 1
     nc = 1
     X = []
@@ -90,13 +85,9 @@ def rhs_py_total_mob(t, x, u, covar, p, M, c, mob, pop_node):
     rhs = np.array([])
     for i in range(M):
         rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, mob[i], pop_node[i])[0])
-
     return rhs
-
-
 def rk4_step(dt, states, controls, covar, params, M, c, pop_node):
     """ A step of RK4 with the right mobility, should work well"""
-
     k1 = rhs_py_total(0, states, controls, covar, params, M, c, pop_node)
     k2 = rhs_py_total(0, states + dt / 2 * k1, controls, covar, params, M, c, pop_node)
     k3 = rhs_py_total(0, states + dt / 2 * k2, controls, covar, params, M, c, pop_node)
@@ -107,6 +98,7 @@ def rk4_step(dt, states, controls, covar, params, M, c, pop_node):
 
 def rk4_step_mob(dt, states, controls, covar, params, M, c, mob, pop_node):
     """ A step of RK4 with the mobility provided, should work well"""
+
     k1 = rhs_py_total_mob(0, states, controls, covar, params, M, c, mob, pop_node)
     k2 = rhs_py_total_mob(0, states + dt / 2 * k1, controls, covar, params, M, c, mob, pop_node)
     k3 = rhs_py_total_mob(0, states + dt / 2 * k2, controls, covar, params, M, c, mob, pop_node)

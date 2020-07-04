@@ -68,7 +68,6 @@ beta_ratio = interp1(V.tbeta,beta_p',V.time_model)';
         % the equation reported in the preprint text valid under the
         % assumptions listed above for the computation of C
         lambda=C*((C'*(betaP0*beta_ratio(:,i_t).*(P+epsilonA*A))+epsilonI*betaP0*beta_ratio(:,i_t).*I)./(C'*(S+E+P+R+A)+I));
-        disp(size(C))
         % Model equations
         dSdt = -lambda.*S;
         dEdt = lambda.*S-deltaE*E;

@@ -6,13 +6,20 @@ import pandas as pd
 import matplotlib as mpl
 import networkx as nx
 import sys
+import matlab.engine
 
 sys.path.append('.')
 from COVIDVaccinationOCP import COVIDVaccinationOCP, rk4_mob, rhs_py_total
 from ItalySetup import ItalySetup
 from scipy.integrate import solve_ivp
 
-s = ItalySetup(problem_size=13)
+eng = matlab.engine.start_matlab()
+eng.cd('geography-paper-master/', nargout=0)
+eng.run('single_build.m', nargout=0)
+
+model_size = 107
+
+s = ItalySetup(model_size)
 
 ocp_params = {'N': 52,  # Number of control time interval
               'T': 52 * 7,  # N * 7
@@ -25,10 +32,71 @@ N = ocp_params['N']
 T = ocp_params['T']
 n_int_steps = ocp_params['n_int_steps']
 
-# Deprecated params, used with MARIO
-model_params = {'sigma': 0.7, 'beta': 0.2, 'mu_b': 0.03615616438, 'gamma': 0.5, 'theta': 3.4476623459780395e-7,
-                'lam': 800, 'mu': 4.53e-5, 'rho_v': 1 / (5 * 365), 'rho': 1 / (8 * 365), 'alpha': 0.004002739726,
-                'r': 1, 'm': 0.3}
+model_days = pd.date_range(s.start_date, s.end_date, freq='1D')
+freq = '1D'  # 'W-MON'
+model_step = pd.date_range(s.start_date, s.end_date, freq=freq)
+mobintime = s.mobility_ts.resample(freq).mean()
+
+N = len(model_step)
+T = len(model_days)
+
+nx = 9
+
+states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
+
+S, E, P, I, A, Q, H, R, V = np.arange(nx)
+
+
+def get_parameters_from_matlab(eng):
+    p = {}
+    p['deltaE'] = eng.eval('deltaE')
+    p['deltaP'] = eng.eval('deltaP')
+    p['sigma'] = eng.eval('sigma')
+    p['eta'] = eng.eval('eta')
+    p['gammaI'] = eng.eval('gammaI')
+    p['gammaA'] = eng.eval('gammaA')
+    p['gammaQ'] = eng.eval('gammaQ')
+    p['gammaH'] = eng.eval('gammaH')
+    p['alphaI'] = eng.eval('alphaI')
+    p['alphaH'] = eng.eval('alphaH')
+    p['zeta'] = eng.eval('V.zeta')
+    p['eta'] = eng.eval('eta')
+    p['r'] = eng.eval('r')
+    p['p'] = np.array(eng.eval('V.p'))[:model_size]
+    p['q'] = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
+    p['betaP0'] = eng.eval('betaP0')
+    p['epsilonA'] = eng.eval('epsilonI')
+    p['epsilonI'] = eng.eval('epsilonA')
+    p['gammaV'] = 1 / 40
+    x0_matlab = np.array(eng.eval('V.x0')).flatten()
+    x0 = np.zeros(9 * s.nnodes)
+    for i in range(s.nnodes):
+        x0[i * nx:(i + 1) * nx] = [x0_matlab[107 * S + i],
+                                   x0_matlab[107 * E + i],
+                                   x0_matlab[107 * P + i],
+                                   x0_matlab[107 * I + i],
+                                   x0_matlab[107 * A + i],
+                                   x0_matlab[107 * Q + i],
+                                   x0_matlab[107 * H + i],
+                                   x0_matlab[107 * R + i],
+                                   np.zeros_like(x0_matlab[107 * R + i])]
+    p['x0'] = x0
+
+    beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
+    beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
+    p['betaratiointime'] = beta_ratio_ts.resample(freq).mean()
+
+    p['integ_matlab'] = np.array(eng.eval('x'))
+
+    return p
+
+p = get_parameters_from_matlab(eng)
+
+
+
+
+
+dt = T / N / n_int_steps
 
 obj_params = {
     'scale_ell': 1e0,
@@ -43,7 +111,7 @@ ocp = COVIDVaccinationOCP(
     n_int_steps=ocp_params['n_int_steps'],
     scaling=ocp_params['scaling'],
     setup=s,
-    model_params=model_params,
+    model_params=p,
     obj_params=obj_params,
     plot_iterates=True,
     optimize=False
