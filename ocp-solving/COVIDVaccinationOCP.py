@@ -8,6 +8,7 @@ import casadi as ca
 import casadi.tools as cat
 import copy
 import networkx
+from utils import *
 
 if "Agg" not in mpl.get_backend():
     mpl.interactive(True)
@@ -17,13 +18,13 @@ plt.ion()
 
 def rhs_py(t, x, u, cov, p, mob, pop_node):
     S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
+
+    deltaE, deltaP,sigma,eta,gammaI,gammaA,gammaQ,gammaH,alphaI,alphaH, zeta, r, p, q, betaP0, epsilonA, epsilonI, gammaV, betaratiointime = p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15], p[16], p[17], p[18]
+
     v = u[0]
 
     foi = mob
     rhs = [None] * nx
-    if S < 0:
-        S = 0
-        v = 0
     vaccrate = v / (S + E + P + A + Q + H + R)
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
     rhs[1] = foi * S - deltaE * E;  # E
@@ -86,6 +87,8 @@ def rhs_py_total_mob(t, x, u, covar, p, M, c, mob, pop_node):
     for i in range(M):
         rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, mob[i], pop_node[i])[0])
     return rhs
+
+
 def rk4_step(dt, states, controls, covar, params, M, c, pop_node):
     """ A step of RK4 with the right mobility, should work well"""
     k1 = rhs_py_total(0, states, controls, covar, params, M, c, pop_node)
@@ -318,37 +321,28 @@ class COVIDVaccinationOCP:
         self.pop_node = pop_node * scaling
         M = setup.nnodes
         mobility = setup.mobility
-        self.ic = copy.deepcopy(setup.ic)
-        self.ic['I'] = self.ic['I'] * scaling
-        self.ic['R'] = self.ic['R'] * scaling
-        self.ic['V'] = self.ic['V'] * scaling
+        # self.ic = copy.deepcopy(setup.ic)
+        # self.ic['I'] = self.ic['I'] * scaling
+        # self.ic['R'] = self.ic['R'] * scaling
+        # self.ic['V'] = self.ic['V'] * scaling
 
         print(f'Building OCP with {M} nodes')
 
         c = setup.mobility
 
-        sigma = model_params['sigma']
-        beta = model_params['beta']
-        mu_b = model_params['mu_b']
-        gamma = model_params['gamma']
-        theta = model_params['theta'] / scaling
-        lam = model_params['lam']
-        mu = model_params['mu']
-        rho_v = model_params['rho_v']
-        rho = model_params['rho']
-        alpha = model_params['alpha']
-        r = model_params['r']
-        m = model_params['m']
-
         scale_ell = obj_params['scale_ell']
         scale_If = obj_params['scale_If']
         scale_v = obj_params['scale_v']
+        pnum = params_to_vector(model_params)
 
-        pnum = [sigma, beta, mu_b, gamma, theta, lam, mu, rho_v, rho, alpha, r, m, scale_ell, scale_If, scale_v]
+        pnum.append(scale_ell)
+        pnum.append(scale_If)
+        pnum.append(scale_v)
 
         # ---- decision variables ---------
-        states = cat.struct_symSX(['I', 'R', 'B', 'V'])
-        [I, R, B, V] = states[...]
+        states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
+        states = cat.struct_symSX(states)
+        [S, E, P, I, A, Q, H, R, V] = states[...]
 
         controls = cat.struct_symSX(['v', 'mob'])
         [v, mob] = controls[...]
@@ -356,13 +350,12 @@ class COVIDVaccinationOCP:
         covar = cat.struct_symSX(['J'])
         [J] = covar[...]
 
-        params = cat.struct_symSX(
-            ['sigma', 'beta', 'mu_b', 'gamma', 'theta', 'lam', 'mu', 'rho_v', 'rho', 'alpha', 'r', 'm', 'scale_ell',
-             'scale_If', 'scale_v'])
-        [sigma, beta, mu_b, gamma, theta, lam, mu, rho_v, rho, alpha, r, m, scale_ell, scale_If, scale_v] = params[...]
+        params = cat.struct_symSX(list(model_params.keys()) + ['scale_ell', 'scale_If', 'scale_v'])
+        [deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, r, p,
+         q, betaP0, epsilonA, epsilonI, gammaV, betaratiointime, scale_ell, scale_If, scale_v] = params[...]
 
         pop_nodeSX = ca.SX.sym('pop_node')
-        # mob = ca.SX.sym('mob')
+
 
         self.states = states
         self.controls = controls
@@ -372,10 +365,6 @@ class COVIDVaccinationOCP:
         # The rhs is at time zero, the time is also no used in the equation so that exoplain
         rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX)
         rhs = ca.veccat(*rhs)
-
-        # t = np.linspace(0, T, N+1)
-        # sol0 = solve_ivp(lambda t,y: rhs_py(t, y, [0,0],[0], pnum),
-        #  [0,T], [ic[name][0] for name in states.keys()],t_eval=t)
 
         frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX],
                            [rhs, scale_ell * rhs_ell + scale_v * v * v])
@@ -399,15 +388,8 @@ class COVIDVaccinationOCP:
             x_, ell_ = rk4_step(x_, controls, covar, params, pop_nodeSX)
             ell += ell_
 
-        rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell_],
+        rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
-        # rk4 = ca.Function('rk4', [states, controls], [x_eul])
-
-        # dae = {'x':states, 'p':ca.veccat(controls,covar,params), 'ode':rhs, 'quad':scale_ell*rhs_ell + scale_v*v*v}
-        # # opts = {'tf':T/N, 'collocation_scheme':'radau', 'interpolation_order':2, 'number_of_finite_elements':5}
-        # # F = ca.integrator('F', 'collocation', dae, opts)
-        # opts = {'tf':T/N, 'number_of_finite_elements':n_int_steps}
-        # F = ca.integrator('F', 'rk', dae, opts)
 
         # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
@@ -445,9 +427,7 @@ class COVIDVaccinationOCP:
             dyn[i] = []
             spatial[i] = []
             for k in range(N):
-                # Fk = F(x0=Vars['x',i,k],p=ca.veccat(Vars['u',i,k],Params['cov',i,k],Params['p']))
-                # X_ = Fk['xf']
-                # ell_ik = Fk['qf']
+
                 [X_, ell_ik] = rk4_int(Vars['x', i, k],
                                        ca.veccat(Vars['u', i, k], Params['cov', i, k], Params['p'], self.pop_node[i]))
                 dyn[i].append(Vars['x', i, k + 1] - X_)
@@ -517,7 +497,7 @@ class COVIDVaccinationOCP:
         self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
 
         plotIterates = PlotIterates('plot_iterates', Vars.size, g.size, Params.size, ind_to_plot, T, N, Vars, ind2name,
-                                     mobility, self.pos_node, self.pop_node, self.scaling)
+                                    mobility, self.pos_node, self.pop_node, self.scaling)
         self.plotIterates = plotIterates
 
         options = {}
@@ -552,7 +532,8 @@ class COVIDVaccinationOCP:
         for i, name in enumerate(states.keys()):
             for k in range(N + 1):
                 # init['x',:,k,name] = sol0.y[i,k]
-                init['x', :, k, name] = self.ic[name][i]
+                init['x', :, k, name] = p['x0']  # self.ic[name][i]
+
         init['u'] = 0.
 
         arg = {}

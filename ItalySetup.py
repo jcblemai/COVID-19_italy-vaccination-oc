@@ -26,19 +26,19 @@ class ItalySetup:
         pop_node = geodata.population.to_numpy()
 
 
-        ic = {}
-        states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-        for st in states:
-            ic[st] = np.zeros(nnodes)
-        ic['S'] = pop_node
-        seeding_place = 'Genova'
-        ic['I'][ind2name.index(seeding_place)] = 10#0.05 * pop_node[ind2name.index(seeding_place)]
-        ic['S'][ind2name.index(seeding_place)] = ic['S'][ind2name.index(seeding_place)] - 10
+        #ic = {}
+        #states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
+        #for st in states:
+        #    ic[st] = np.zeros(nnodes)
+        #ic['S'] = pop_node
+        #seeding_place = 'Genova'
+        #ic['I'][ind2name.index(seeding_place)] = 10#0.05 * pop_node[ind2name.index(seeding_place)]
+        #ic['S'][ind2name.index(seeding_place)] = ic['S'][ind2name.index(seeding_place)] - 10
         to_plot = ['Torino', 'Genova']
 
         self.ind2name = ind2name
         self.mobility = mobility
-        self.ic = ic
+        #self.ic = ic
 
         self.ind_to_plot = [ind2name.index(place) for place in to_plot]
         self.pop_node = pop_node

@@ -1,0 +1,53 @@
+import numpy as np
+import pandas as pd
+
+nx = 9
+S, E, P, I, A, Q, H, R, V = np.arange(nx)
+
+def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
+    p = {}
+    p['deltaE'] = eng.eval('deltaE')
+    p['deltaP'] = eng.eval('deltaP')
+    p['sigma'] = eng.eval('sigma')
+    p['eta'] = eng.eval('eta')
+    p['gammaI'] = eng.eval('gammaI')
+    p['gammaA'] = eng.eval('gammaA')
+    p['gammaQ'] = eng.eval('gammaQ')
+    p['gammaH'] = eng.eval('gammaH')
+    p['alphaI'] = eng.eval('alphaI')
+    p['alphaH'] = eng.eval('alphaH')
+    p['zeta'] = eng.eval('V.zeta')
+    p['eta'] = eng.eval('eta')
+    p['r'] = eng.eval('r')
+    p['p'] = np.array(eng.eval('V.p'))[:model_size].flatten()
+    p['q'] = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
+    p['betaP0'] = eng.eval('betaP0')
+    p['epsilonA'] = eng.eval('epsilonI')
+    p['epsilonI'] = eng.eval('epsilonA')
+    p['gammaV'] = 1 / 40
+    x0_matlab = np.array(eng.eval('V.x0')).flatten()
+    x0 = np.zeros(9 * s.nnodes)
+    for i in range(s.nnodes):
+        x0[i * nx:(i + 1) * nx] = [x0_matlab[107 * S + i],
+                                   x0_matlab[107 * E + i],
+                                   x0_matlab[107 * P + i],
+                                   x0_matlab[107 * I + i],
+                                   x0_matlab[107 * A + i],
+                                   x0_matlab[107 * Q + i],
+                                   x0_matlab[107 * H + i],
+                                   x0_matlab[107 * R + i],
+                                   np.zeros_like(x0_matlab[107 * R + i])]
+
+    beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
+    beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
+    p['betaratiointime'] = beta_ratio_ts.resample(freq).mean()
+
+
+
+    return p, x0
+
+def params_to_vector(p):
+    plist = []
+    for key in p.keys():
+        plist.append(p[key])
+    return plist

@@ -13,6 +13,8 @@ from COVIDVaccinationOCP import COVIDVaccinationOCP, rk4_mob, rhs_py_total
 from ItalySetup import ItalySetup
 from scipy.integrate import solve_ivp
 
+from utils import *
+
 eng = matlab.engine.start_matlab()
 eng.cd('geography-paper-master/', nargout=0)
 eng.run('single_build.m', nargout=0)
@@ -42,59 +44,15 @@ T = len(model_days)
 
 nx = 9
 
+pnames = 1
+
 states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
+integ_matlab = np.array(eng.eval('x'))
 
-def get_parameters_from_matlab(eng):
-    p = {}
-    p['deltaE'] = eng.eval('deltaE')
-    p['deltaP'] = eng.eval('deltaP')
-    p['sigma'] = eng.eval('sigma')
-    p['eta'] = eng.eval('eta')
-    p['gammaI'] = eng.eval('gammaI')
-    p['gammaA'] = eng.eval('gammaA')
-    p['gammaQ'] = eng.eval('gammaQ')
-    p['gammaH'] = eng.eval('gammaH')
-    p['alphaI'] = eng.eval('alphaI')
-    p['alphaH'] = eng.eval('alphaH')
-    p['zeta'] = eng.eval('V.zeta')
-    p['eta'] = eng.eval('eta')
-    p['r'] = eng.eval('r')
-    p['p'] = np.array(eng.eval('V.p'))[:model_size]
-    p['q'] = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
-    p['betaP0'] = eng.eval('betaP0')
-    p['epsilonA'] = eng.eval('epsilonI')
-    p['epsilonI'] = eng.eval('epsilonA')
-    p['gammaV'] = 1 / 40
-    x0_matlab = np.array(eng.eval('V.x0')).flatten()
-    x0 = np.zeros(9 * s.nnodes)
-    for i in range(s.nnodes):
-        x0[i * nx:(i + 1) * nx] = [x0_matlab[107 * S + i],
-                                   x0_matlab[107 * E + i],
-                                   x0_matlab[107 * P + i],
-                                   x0_matlab[107 * I + i],
-                                   x0_matlab[107 * A + i],
-                                   x0_matlab[107 * Q + i],
-                                   x0_matlab[107 * H + i],
-                                   x0_matlab[107 * R + i],
-                                   np.zeros_like(x0_matlab[107 * R + i])]
-    p['x0'] = x0
-
-    beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
-    beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
-    p['betaratiointime'] = beta_ratio_ts.resample(freq).mean()
-
-    p['integ_matlab'] = np.array(eng.eval('x'))
-
-    return p
-
-p = get_parameters_from_matlab(eng)
-
-
-
-
+p , x0= get_parameters_from_matlab(eng, s, model_size, model_days, freq)
 
 dt = T / N / n_int_steps
 
@@ -104,7 +62,7 @@ obj_params = {
     'scale_v': 1e-6
 }
 
-# Build optimal control problem, can be long...
+
 ocp = COVIDVaccinationOCP(
     N=ocp_params['N'],
     T=ocp_params['T'],
@@ -117,20 +75,23 @@ ocp = COVIDVaccinationOCP(
     optimize=False
 )
 
-# Set initial conditions as constraints
+# Build optimal control problem, can be long...
 for name in ocp.ic.keys():
     for i in range(s.nnodes):
         ocp.arg['lbx']['x', i, 0, name] = ocp.arg['ubx']['x', i, 0, name] = ocp.ic[name][i]
 
-# Upper bound for the vaccination rate
+# Set initial conditions as constraints
 ocp.arg['ubx']['u', :, :, 'v'] = 15000 * scaling  # TODO: zero if not optimize, duh
+
+# Upper bound for the vaccination rate
 # Upper bound of the vaccination rate for a specific place.
 # ocp.arg['ubx']['u',s.ind2name.index('Verona'),:,'v'] = 10000  * scaling
+ocp.arg['p']['p', 'scale_v'] = 1e-4 / scaling
 
 # Scaling coef of the different objectives.
-ocp.arg['p']['p', 'scale_v'] = 1e-4 / scaling
 ocp.arg['p']['p', 'scale_ell'] = 1e2
 ocp.arg['p']['p', 'scale_If'] = 1e6
+init = ocp.Vars(0)
 
 # Changing parameters on the fly
 # ocp.arg['p']['p','lam'] = 6.8
@@ -140,12 +101,12 @@ ocp.arg['p']['p', 'scale_If'] = 1e6
 # ocp.arg['ubx']['u',:,:int(7/(T/N)) ,'v'] = 0.
 
 
-init = ocp.Vars(0)
 for t in range(len(s.ind2name)):
     for name in ocp.states.keys():
         if name not in ['B', 'I']:
             for k in range(N + 1):
                 init['x', t, k, name] = ocp.ic[name][t]
+
 # init['u'] = 0.
 
 
