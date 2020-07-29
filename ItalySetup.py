@@ -34,13 +34,13 @@ class ItalySetup:
         #seeding_place = 'Genova'
         #ic['I'][ind2name.index(seeding_place)] = 10#0.05 * pop_node[ind2name.index(seeding_place)]
         #ic['S'][ind2name.index(seeding_place)] = ic['S'][ind2name.index(seeding_place)] - 10
-        to_plot = ['Torino', 'Genova']
+        #to_plot = ['Torino', 'Genova']
 
         self.ind2name = ind2name
         self.mobility = mobility
         #self.ic = ic
 
-        self.ind_to_plot = [ind2name.index(place) for place in to_plot]
+        #self.ind_to_plot = [ind2name.index(place) for place in to_plot]
         self.pop_node = pop_node
         self.nnodes = len(ind2name)
 

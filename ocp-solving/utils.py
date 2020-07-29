@@ -4,8 +4,9 @@ import pandas as pd
 nx = 9
 S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
+
 def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
-    p = {}
+    p = {}  # 1D parameters
     p['deltaE'] = eng.eval('deltaE')
     p['deltaP'] = eng.eval('deltaP')
     p['sigma'] = eng.eval('sigma')
@@ -19,8 +20,6 @@ def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
     p['zeta'] = eng.eval('V.zeta')
     p['eta'] = eng.eval('eta')
     p['r'] = eng.eval('r')
-    p['p'] = np.array(eng.eval('V.p'))[:model_size].flatten()
-    p['q'] = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
     p['betaP0'] = eng.eval('betaP0')
     p['epsilonA'] = eng.eval('epsilonI')
     p['epsilonI'] = eng.eval('epsilonA')
@@ -40,11 +39,13 @@ def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
 
     beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
     beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
-    p['betaratiointime'] = beta_ratio_ts.resample(freq).mean()
+    betaratiointime = beta_ratio_ts.resample(freq).mean()
 
+    mobile_frac = np.array(eng.eval('V.p'))[:model_size].flatten()
+    mobility_matrix = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
 
+    return p, mobile_frac, mobility_matrix, betaratiointime, x0
 
-    return p, x0
 
 def params_to_vector(p):
     plist = []
