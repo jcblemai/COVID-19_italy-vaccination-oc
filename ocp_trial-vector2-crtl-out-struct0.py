@@ -295,6 +295,7 @@ for k in range(N):
     
     dyn[k] = []
     spatial[k] = []
+    Sgeq0[k] = []
     Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*Vars['x', :, k, 'S']), ca.veccat(*Vars['x', :, k, 'E']),                              ca.veccat(*Vars['x', :, k, 'P']), ca.veccat(*Vars['x', :, k, 'R']),                              ca.veccat(*Vars['x', :, k, 'A']), ca.veccat(*Vars['x', :, k, 'I'])
 
     if k == 0 or k == N-1:
