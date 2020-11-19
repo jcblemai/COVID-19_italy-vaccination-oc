@@ -55,7 +55,8 @@ class ItalySetup:
         self.mobility_ts = mobility_ts.iloc[:,:problem_size]
 
 
-        shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp')
+        shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp').sort_values('COD_PROV')
+
         self.shp = shp.merge(geodata)
         self.pos_node = np.zeros((nnodes, 2))
         self.pos_node[:, 0] = self.shp.centroid.x

@@ -23,7 +23,7 @@ def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
     p['betaP0'] = eng.eval('betaP0')
     p['epsilonA'] = eng.eval('epsilonI')
     p['epsilonI'] = eng.eval('epsilonA')
-    p['gammaV'] = 1 / 40
+    p['gammaV'] = 1 / (9*30)
     x0_matlab = np.array(eng.eval('V.x0')).flatten()
     x0 = np.zeros(9 * s.nnodes)
     for i in range(s.nnodes):
