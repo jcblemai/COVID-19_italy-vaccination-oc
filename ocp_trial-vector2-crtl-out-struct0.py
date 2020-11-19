@@ -27,6 +27,7 @@ eng.cd('geography-paper-master/', nargout=0)
 eng.run('single_build.m', nargout=0)
 
 model_size = 107
+model_size = 20
 
 s = ItalySetup(model_size)
 
@@ -204,12 +205,12 @@ rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX]
 # In[27]:
 
 
-# Overwrite last cell with eurler.
-dt = T / N / n_int_steps  # length of an integration interval
-a, b = frhs(states, controls, covar, params, pop_nodeSX)
-x_next = states + dt*a
-ell_next = dt*b
-rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+# # Overwrite last cell with eurler.
+# dt = T / N / n_int_steps  # length of an integration interval
+# a, b = frhs(states, controls, covar, params, pop_nodeSX)
+# x_next = states + dt*a
+# ell_next = dt*b
+# rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
 
 # In[28]:
@@ -279,6 +280,7 @@ reg = 0
 cdot_T = 0
 dyn = [None] * N
 spatial = [None] * N
+Sgeq0 = [None] * N
 
 mob_prun = -1
 #mob_prun = 0.0001
@@ -293,6 +295,7 @@ for k in range(N):
     
     dyn[k] = []
     spatial[k] = []
+    Sgeq0[k] = []
     Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*Vars['x', :, k, 'S']), ca.veccat(*Vars['x', :, k, 'E']),                              ca.veccat(*Vars['x', :, k, 'P']), ca.veccat(*Vars['x', :, k, 'R']),                              ca.veccat(*Vars['x', :, k, 'A']), ca.veccat(*Vars['x', :, k, 'I'])
 
     if k == 0 or k == N-1:
@@ -329,6 +332,9 @@ for k in range(N):
         mob_ik = sum(C[i, m] * foi[m] for m in range(M))
         
         spatial[k].append(Vars['u', i, k, 'mob'] - mob_ik) # spatial, vaccines and dyn are put in g(x), with constraints that spatial and dyn are equal to zero
+
+        VacPpl = sum(Vars['x', i, k,name] for name in ['S','E','P','A','R'])
+        Sgeq0[k].append( Vars['x', i, k,'S'] - Vars['u', i, k, 'v']/(VacPpl+1e-10) )
         # thus imposing the dynamics and coupling.
         vaccines += Vars[ 'u', i, k, 'v'] * T / N  # Number of vaccine spent = num of vaccine rate * 7 (number of days)
 
@@ -361,6 +367,7 @@ g = cat.struct_MX([
     cat.entry("dyn", expr=dyn),
     cat.entry("spatial", expr=spatial),
     cat.entry("vaccines", expr=vaccines),
+    cat.entry("Sgeq0", expr=Sgeq0),
 ])
 
 costTerms = ca.Function('costTerms', [Vars, Params], [cases, reg])
@@ -373,6 +380,8 @@ ubg = g(0)
 
 ubg['vaccines'] = 2000. * M
 lbg['vaccines'] = -np.inf
+
+ubg['Sgeq0'] = np.inf
 
 optimize = 1
 lbx['u', :, :, 'v'] = 0.
