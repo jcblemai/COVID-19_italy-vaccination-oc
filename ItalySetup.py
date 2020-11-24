@@ -27,28 +27,14 @@ class ItalySetup:
         pop_node = geodata.population.to_numpy()
 
 
-        #ic = {}
-        #states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-        #for st in states:
-        #    ic[st] = np.zeros(nnodes)
-        #ic['S'] = pop_node
-        #seeding_place = 'Genova'
-        #ic['I'][ind2name.index(seeding_place)] = 10#0.05 * pop_node[ind2name.index(seeding_place)]
-        #ic['S'][ind2name.index(seeding_place)] = ic['S'][ind2name.index(seeding_place)] - 10
-        #to_plot = ['Torino', 'Genova']
-
         self.ind2name = ind2name
         self.mobility = mobility
-        #self.ic = ic
 
-        #self.ind_to_plot = [ind2name.index(place) for place in to_plot]
         self.pop_node = pop_node
         self.nnodes = len(ind2name)
 
-        # FIX: This is to be set manualy in the R code.
         self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
         self.end_date = datetime.date(2020, 7, 1)
-        #self.end_sim = datetime.date(2019, 12, 31)
 
         mobility_ts = pd.read_csv('italy-data/mobility_ts.csv', header = None, index_col = 0, parse_dates=True)
         mobility_ts.columns = np.arange(len(mobility_ts.columns))

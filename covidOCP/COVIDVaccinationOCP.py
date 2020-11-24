@@ -1,14 +1,16 @@
-#!/usr/bin/env python
-# coding: utf-8
 
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib as mpl
 import casadi as ca
 import casadi.tools as cat
-import copy
-import networkx
+import numpy as np
+import matplotlib.pyplot as plt
+import pandas as pd
+import matplotlib as mpl
+import networkx as nx
+import sys, copy
+from scipy.integrate import solve_ivp
 from utils import *
+import networkx
+import geopandas as gpd
 
 if "Agg" not in mpl.get_backend():
     mpl.interactive(True)
@@ -19,22 +21,23 @@ plt.ion()
 def rhs_py(t, x, u, cov, p, mob, pop_node):
     S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
 
-    deltaE, deltaP,sigma,eta,gammaI,gammaA,gammaQ,gammaH,alphaI,alphaH, zeta, r, p, q, betaP0, epsilonA, epsilonI, gammaV, betaratiointime = p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11], p[12], p[13], p[14], p[15], p[16], p[17], p[18]
-
+    deltaE, deltaP,sigma,eta,gammaI,gammaA,gammaQ,gammaH,alphaI,alphaH, zeta,  gammaV =     p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9], p[10], p[11]
+   
     v = u[0]
-
     foi = mob
     rhs = [None] * nx
-    vaccrate = v / (S + E + P + A + Q + H + R)
-    rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
-    rhs[1] = foi * S - deltaE * E;  # E
-    rhs[2] = deltaE * E - deltaP * P;  # P
+    vaccrate = v / (S + E + P + A + Q + H + R+1)  # NOT I NOT H ?
+    vaccrate = v / ca.sqrt((S+E+P+A+Q+H+R)**2+10)   # 10 (1e7 ?1e3 ?)is to tune depending on scale, approx abs. value (brings quantities non negative by vaccinating)
+    vaccrate = 0
+    rhs[0] = -(foi + vaccrate) * S + gammaV * V                 # S
+    rhs[1] = foi * S - deltaE * E;                              # E 
+    rhs[2] = deltaE * E - deltaP * P;                           # P
     rhs[3] = sigma * deltaP * P - (eta + gammaI + alphaI) * I;  # I
-    rhs[4] = (1 - sigma) * deltaP * P - gammaA * A;  # A
-    rhs[5] = zeta * eta * I - gammaQ * Q;  # Q
-    rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H;  # H
+    rhs[4] = (1 - sigma) * deltaP * P - gammaA * A;             # A
+    rhs[5] = zeta * eta * I - gammaQ * Q;                       # Q
+    rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H;      # H
     rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q;  # R
-    rhs[8] = vaccrate * S - gammaV * V  # V
+    rhs[8] = vaccrate * S - gammaV * V                           # V
     rhs_ell = [None] * 3
     rhs_ell[0] = gammaH * H;  # recovered from the hospital
     rhs_ell[1] = alphaH * H;  # total death
@@ -43,29 +46,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     return rhs, rhs_ell
 
 
-def rhs_py_total(t, x, u, covar, p, M, c, pop_node):
-    """ 
-        Give the complete rhs of the equation, plugin-in the mobility as it is usually implemented. 
-        I think it works well
-    """
-    nu = 1
-    nc = 1
-    X = np.zeros((M, nx))
-    U = []
-    # C = []
-    for i in range(M):  # Uses flat vectors
-        # X.append(x[i * nx:(i + 1) * nx])
 
-        X[i, :] = x[i * nx:(i + 1) * nx]
-        U.append(u[i * nu:(i + 1) * nu])
-        # C.append(covar[i * nc:(i + 1) * nc])
-    rhs = np.array([])
-    for i in range(M):
-        foi = C @ ((C.T @ (betaP0 * betaR * (X[:, P] + epsilonA * X[:, A])) + epsilonI * betaP0 * betaR * X[:, I]) / \
-                   (C.T @ (X[:, S] + X[:, E] + X[:, P] + X[:, R] + X[:, A]) + X[:, I]))  # TODO V here
-        rhs = np.append(rhs, rhs_py(t, X[i], U[i], C[i], p, foi[i], pop_node[i])[0])
-    # foinomob.append(foi)
-    return rhs
 
 
 def rhs_py_total_mob(t, x, u, covar, p, M, c, mob, pop_node):
@@ -99,23 +80,8 @@ def rk4_step(dt, states, controls, covar, params, M, c, pop_node):
     return states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-def rk4_step_mob(dt, states, controls, covar, params, M, c, mob, pop_node):
-    """ A step of RK4 with the mobility provided, should work well"""
-
-    k1 = rhs_py_total_mob(0, states, controls, covar, params, M, c, mob, pop_node)
-    k2 = rhs_py_total_mob(0, states + dt / 2 * k1, controls, covar, params, M, c, mob, pop_node)
-    k3 = rhs_py_total_mob(0, states + dt / 2 * k2, controls, covar, params, M, c, mob, pop_node)
-    k4 = rhs_py_total_mob(0, states + dt * k3, controls, covar, params, M, c, mob, pop_node)
-
-    return states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-def rk4(dt, states, controls, covar, params, M, c, n_int_steps, pop_node):
-    x_ = states
-    for k in range(n_int_steps):
-        x_ = rk4_step(dt, x_, controls, covar, params, M, c, pop_node)
-
-    return x_
 
 
 def rk4_mob(dt, states, controls, covar, params, M, c, n_int_steps, mob, pop_node):
@@ -281,65 +247,15 @@ class PlotIterates(ca.Callback):
 
 
 def mobility_graph(mobility, ind2name, pos_node, pop_node, opt, N):
-    G = networkx.Graph()
-    G.position = {}
-    G.pop = {}
-    G.vac = {}
-    G.inf = {}
 
-    for i, node in enumerate(ind2name):
-
-        G.add_node(node)
-
-        G.position[node] = (pos_node[i, 0], pos_node[i, 1])
-        G.pop[node] = pop_node[i]
-        G.vac[node] = max(np.array(ca.veccat(*opt['x', i, :, 'V'])))[0]
-        G.inf[node] = sum(np.array(ca.veccat(*opt['x', i, :, 'I'])))[0]
-
-        for j, connection in enumerate(mobility[i]):
-            G.add_edge(node, ind2name[j], weight=connection,
-                       exchange=sum(mobility[i, j] * opt['x', j, k, 'B'] / (1 + opt['x', j, k, 'B']) for k in range(N)))
-
-    return G
 
 
 class COVIDVaccinationOCP:
-    def __init__(self, N, T, n_int_steps, scaling, setup, model_params, obj_params, plot_iterates=False,
-                 optimize=True):
+    def __init__(self, N, T, n_int_steps, scaling, setup, plot_iterates=False, optimize=True):
         self.N = N
         self.T = T
         self.n_int_steps = n_int_steps
-        self.scaling = scaling
-        self.pos_node = setup.pos_node
 
-        ind2name = setup.ind2name
-        ind_to_plot = setup.ind_to_plot
-        pop_node = setup.pop_node
-
-        # First thing to do is to apply the scaling:
-
-        self.pop_node = pop_node * scaling
-        M = setup.nnodes
-        mobility = setup.mobility
-        # self.ic = copy.deepcopy(setup.ic)
-        # self.ic['I'] = self.ic['I'] * scaling
-        # self.ic['R'] = self.ic['R'] * scaling
-        # self.ic['V'] = self.ic['V'] * scaling
-
-        print(f'Building OCP with {M} nodes')
-
-        c = setup.mobility
-
-        scale_ell = obj_params['scale_ell']
-        scale_If = obj_params['scale_If']
-        scale_v = obj_params['scale_v']
-        pnum = params_to_vector(model_params)
-
-        pnum.append(scale_ell)
-        pnum.append(scale_If)
-        pnum.append(scale_v)
-
-        # ---- decision variables ---------
         states = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
         states = cat.struct_symSX(states)
         [S, E, P, I, A, Q, H, R, V] = states[...]
@@ -347,27 +263,28 @@ class COVIDVaccinationOCP:
         controls = cat.struct_symSX(['v', 'mob'])
         [v, mob] = controls[...]
 
-        covar = cat.struct_symSX(['J'])
-        [J] = covar[...]
+        covar = cat.struct_symSX(['mobility_t','betaratio_t'])
+        [mobility_t, betaratio_t] = covar[...]
 
         params = cat.struct_symSX(list(model_params.keys()) + ['scale_ell', 'scale_If', 'scale_v'])
-        [deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, r, p,
-         q, betaP0, epsilonA, epsilonI, gammaV, betaratiointime, scale_ell, scale_If, scale_v] = params[...]
+        [deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV,
+        scale_ell, scale_If, scale_v] = params[...]
 
         pop_nodeSX = ca.SX.sym('pop_node')
 
 
-        self.states = states
-        self.controls = controls
-        self.covar = covar
-        self.params = params
-
         # The rhs is at time zero, the time is also no used in the equation so that exoplain
         rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX)
         rhs = ca.veccat(*rhs)
+        rhs_ell = ca.veccat(*rhs_ell)  # mod
+
+
+
 
         frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX],
-                           [rhs, scale_ell * rhs_ell + scale_v * v * v])
+                                [rhs, rhs_ell[1]])#scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
+
+
 
         dt = T / N / n_int_steps  # length of an integration interval
         # ---- dynamic constraints --------
@@ -381,20 +298,43 @@ class COVIDVaccinationOCP:
 
         rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
+
+
+        # Overwrite last cell with eurler.
+        dt = T / N / n_int_steps  # length of an integration interval
+        a, b = frhs(states, controls, covar, params, pop_nodeSX)
+        x_next = states + dt*a
+        ell_next = dt*b
+        rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+
+
+
         x_ = ca.veccat(*states[...])
+        u_ = ca.veccat(*controls[...])
         ell = 0.
-        # x_eul = x_ + dt*k1
+        VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
+        vaccrate = controls['v']/(VacPpl+1e-10)
+        x_[0] -= vaccrate * states['S']
+        x_[8] += vaccrate * states['S']
         for k in range(n_int_steps):
-            x_, ell_ = rk4_step(x_, controls, covar, params, pop_nodeSX)
+            x_, ell_ = rk4_step(x_, u_,covar, params, pop_nodeSX)
             ell += ell_
 
+
+
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
-                              ['x0', 'p'], ['xf', 'qf'])
+                            ['x0', 'p'], ['xf', 'qf'])
 
         # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
-                          [scale_ell * ell + scale_v * v * v, scale_ell * ell,
-                           scale_v * v * v])  # Very dependent on regularization factor
+                        [scale_ell * ell + scale_v * v * v, scale_ell * ell,
+                        scale_v * v * v])  # Very dependent on regularization factor
+        #ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
+        #                  [ell, scale_ell * ell,
+        #                   scale_v * v * v])  # Very dependent on regularization factor
+
+
+
 
         Vars = cat.struct_symMX([
             (
@@ -405,14 +345,12 @@ class COVIDVaccinationOCP:
 
         Params = cat.struct_symMX([
             (
-                cat.entry("cov", struct=covar, repeat=[M, N]),  # TODO BUG this make the rainfall weekly !
+                cat.entry("cov", struct=covar, repeat=[M, N]), 
                 cat.entry("p", struct=params),
             ),
         ])
 
-        self.Vars = Vars
-        self.Params = Params
-        # This initialize
+
         lbx = Vars(-np.inf)
         ubx = Vars(np.inf)
 
@@ -421,71 +359,122 @@ class COVIDVaccinationOCP:
         cases = 0
         reg = 0
         cdot_T = 0
-        dyn = [None] * M
-        spatial = [None] * M
-        for i in range(M):
-            dyn[i] = []
-            spatial[i] = []
-            for k in range(N):
+        dyn = [None] * N
+        spatial = [None] * N
 
+        Sgeq0 = [None] * N
+
+        mob_prun = 0.0006
+
+        # Pruning mobility once:
+        k=0
+        mobility_history = []
+        mobK = mobintime.to_numpy().T[:,k]
+        betaR =  betaratiointime.to_numpy().T[:,k]
+        C = r*mobfrac.flatten()*mobK*mobmat
+        np.fill_diagonal(C,1-C.sum(axis=1)+ C.diagonal())
+        print(f'pruning {C[C<mob_prun].size} non-diagonal mobility elements of {C.size-M}.')  
+        C[C<mob_prun] = 0 # Prune elements
+        mobility_history.append(C)
+
+        mobmat_pr = np.copy(mobmat)
+
+
+        mobmat_pr[mobility_history[0] == 0] = 0
+        print(f'nnz before: {np.count_nonzero(mobmat)}, after: {np.count_nonzero(mobmat_pr)}')
+
+        for k in range(N):
+            mobK = Params['cov',:,k,'mobility_t'] #mobintime.to_numpy().T[:,k]
+            betaR =  Params['cov',:,k,'mobility_t']# betaratiointime.to_numpy().T[:,k]
+            C = r*mobfrac.flatten()*mobK*mobmat_pr
+            np.fill_diagonal(C,1-C.sum(axis=1)+ C.diagonal())
+            
+            dyn[k] = []
+            spatial[k] = []
+            Sgeq0[k] = []
+            Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*Vars['x', :, k, 'S']), ca.veccat(*Vars['x', :, k, 'E']), 
+                                     ca.veccat(*Vars['x', :, k, 'P']), ca.veccat(*Vars['x', :, k, 'R']), 
+                                    ca.veccat(*Vars['x', :, k, 'A']), ca.veccat(*Vars['x', :, k, 'I'])
+
+            #if k == 0 or k == N-1:
+            #    print(f'pruning {C[C<mob_prun].size} non-diagonal mobility elements of {C.size-M}.')  
+            #C[C<mob_prun] = 0 # Prune elements
+            #mobility_history.append(C)
+            
+            foi_sup = []
+            foi_inf = []
+            for n in range(M):
+                foi_sup.append(betaP0*betaR[n]*(Pk[n]+epsilonA*Ak[n]))
+                foi_inf.append(Sk[n]+Ek[n]+Pk[n]+Rk[n]+Ak[n])
+            
+            foi = []
+            for m in range(M):
+                foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + epsilonI*betaP0*betaR[m]*Ik[m]) /
+                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
+                
+
+            print(f'{k}:', end='')
+            for i in range(M):
                 [X_, ell_ik] = rk4_int(Vars['x', i, k],
-                                       ca.veccat(Vars['u', i, k], Params['cov', i, k], Params['p'], self.pop_node[i]))
-                dyn[i].append(Vars['x', i, k + 1] - X_)
-                ell_ik_, cases_ik, reg_ik = ell(Vars['x', i, k], Vars['u', i, k], Params['cov', i, k], Params['p'],
-                                                self.pop_node[i])
-                f += ell_ik
+                                    ca.veccat(Vars['u', i, k], Params['cov', i, k], Params['p'], pop_node[i]))
+
+                dyn[k].append(Vars['x', i, k + 1] - X_)
+                ell_ik_, cases_ik, reg_ik = ell(Vars['x', i, k], Vars['u', i, k], Params['cov', i, k], Params['p'], pop_node[i])
+                f += ell_ik_ #MOD: before  ell_ik_
                 cases += cases_ik
                 reg += reg_ik
-
-                mob_ik = sum(c[i, j] * Vars['x', j, k, 'B'] / (1 + Vars['x', j, k, 'B']) for j in range(M))
-                spatial[i].append(Vars[
-                                      'u', i, k, 'mob'] - mob_ik)  # spatial, vaccines and dyn are put in g(x), with constraints that spatial and dyn are equal to zero
+                #mob_ik = sum(C[i, m] * (
+                #            (sum(C[n, m] * (betaP0*betaR[n]*(Pk[n]+epsilonA*Ak[n])) for n in range(M)) + 
+                #             epsilonI*betaP0*betaR[m]*Ik[m]) /
+                #            (sum(C[l, m]*(Sk[l]+Ek[l]+Pk[l]+Rk[l]+Ak[l]) for l in range(M)) + Ik[m]))
+                #             for m in range(M))
+                mob_ik = sum(C[i, m] * foi[m] for m in range(M))
+                
+                spatial[k].append(Vars['u', i, k, 'mob'] - mob_ik) # spatial, vaccines and dyn are put in g(x), with constraints that spatial and dyn are equal to zero
+                VacPpl = sum(Vars['x', i, k,name] for name in ['S','E','P','A','R'])
+                Sgeq0[k].append( Vars['x', i, k,'S'] - Vars['u', i, k, 'v']/(VacPpl+1e-10) )
                 # thus imposing the dynamics and coupling.
-                vaccines += Vars[
-                                'u', i, k, 'v'] * T / N  # Number of vaccine spent = num of vaccine rate * 7 (number of days)
+                vaccines += Vars[ 'u', i, k, 'v'] * T / N  # Number of vaccine spent = num of vaccine rate * 7 (number of days)
 
-        f /= T  # Average over interval for cost ^ but not terminal cost .
+        f /= T  # Average over interval for cost ^ but not terminal cost
 
-        # Final time objective:
-        for i in range(M):
-            Bi1Bi = Vars['x', i, -1, 'B'] / (1 + Vars['x', i, -1, 'B'])
-            mob_i = sum(c[i, j] * Vars['x', j, -1, 'B'] / (1 + Vars['x', j, -1, 'B']) for j in range(M))
-            foi = Params['p', 'beta'] * ((1 - Params['p', 'm']) * Bi1Bi + Params['p', 'm'] * mob_i)
-            # R0 = Params['p','theta']*Params['p','beta']*Vars['x',i,-1,'S']
-            # R0 /= Params['p','mu_b']*( Params['p','gamma'] + Params['p','mu'] + Params['p','alpha'] )
-            # f += Params['p','scale_If']*Vars['x',i,-1,'I']
-            f += Params['p', 'scale_If'] * Params['p', 'sigma'] * (
-                    self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
-            cdot_T += Params['p', 'scale_If'] * Params['p', 'sigma'] * (
-                    self.pop_node[i] - sum(Vars['x', i, -1, name] for name in ['R', 'I', 'V'])) * foi
+    def build(self):
 
+        print('Writing constraints, ...', end='')
         g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
             cat.entry("spatial", expr=spatial),
             cat.entry("vaccines", expr=vaccines),
+            cat.entry("Sgeq0", expr=Sgeq0)
         ])
 
-        costTerms = ca.Function('costTerms', [Vars, Params], [cases, reg, cdot_T])
-        self.costTerms = costTerms
+        costTerms = ca.Function('costTerms', [Vars, Params], [cases, reg])
+
 
         # This initialize
         lbg = g(0)
         ubg = g(0)
 
-        self.g = g
 
-        ubg['vaccines'] = 100000. * M
+        ubg['vaccines'] = 2000*(T*.6)*M #8e6 #*M
         lbg['vaccines'] = -np.inf
 
+        ubg['Sgeq0'] = np.inf
+
+        optimize = 0
         lbx['u', :, :, 'v'] = 0.
-        ubx['u', :, :, 'v'] = 15000 * optimize  # = 0 if we don't want to optimize
+        ubx['u', :, :, 'v'] = 2000 * optimize  # = 0 if we don't want to optimize
         # ubx['u',:,:,'v'] = 0
-        ubx['u', :, :1, 'v'] = 0.
+        #ubx['u', :, :1, 'v'] = 0.
+
 
         # Set initial conditions as constraints
-        for name in states.keys():
+        for cp, name in enumerate(states.keys()):
             for i in range(M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = self.ic[name][i]
+                lbx['x', i, 0, name] = ubx['x', i, 0, name] = x0[i*nx+cp]
+
+        print('DONE')
+        print('Building NLP function...', end='')
 
         # NLOP arguments:
         # 'x' : variable names to optimize: here states and control
@@ -493,16 +482,18 @@ class COVIDVaccinationOCP:
         # 'f' is the objective function of 'x', that we ought to minize
         # 'g' is a function that goes lbg < g(x,p) < ubg. If you want equality constraint then ubg = lbg = the number yoiu want it to be.
         nlp = {'x': Vars, 'p': Params, 'f': f, 'g': g}
-        self.nlpFun = ca.Function('nlpFun', [Vars, Params], [f, g])
-        self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
+        nlpFun = ca.Function('nlpFun', [Vars, Params], [f, g])
+        print('DONE')
+        print('Building Jacobian function...', end='')
+        nlpJac = nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
 
-        plotIterates = PlotIterates('plot_iterates', Vars.size, g.size, Params.size, ind_to_plot, T, N, Vars, ind2name,
-                                    mobility, self.pos_node, self.pop_node, self.scaling)
-        self.plotIterates = plotIterates
+        print('DONE')
+        print('Building Solver...', end='')
 
         options = {}
         options['ipopt'] = {}
-        options['ipopt']["linear_solver"] = "ma57"
+        #options['ipopt']["linear_solver"] = "ma57"
+        options['ipopt']["linear_solver"] = "ma86"
         # options['ipopt']["linear_solver"] = "ma86"
         # options['ipopt']["linear_solver"] = "ma97"
         # options['ipopt']['bound_frac'] = 1e-4
@@ -511,9 +502,8 @@ class COVIDVaccinationOCP:
         # options['ipopt']['slack_bound_push'] = 1e-6
         # options['ipopt']['hessian_constant'] = 'yes'
         # options['ipopt']["tol"] = 1e-8
-        if plot_iterates == True:
-            options["iteration_callback"] = plotIterates
-        self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
+
+        solver = ca.nlpsol('solver', "ipopt", nlp, options)
 
         # options = {}
         # options['ls_step_factor'] = 0.5
@@ -528,11 +518,16 @@ class COVIDVaccinationOCP:
         # options["iteration_callback"] = plotIterates
         # self.solver = SQPmethod(nlp,options)
 
+        print('DONE')
+
+
+    def update(self):
         init = Vars(0)
         for i, name in enumerate(states.keys()):
             for k in range(N + 1):
                 # init['x',:,k,name] = sol0.y[i,k]
-                init['x', :, k, name] = p['x0']  # self.ic[name][i]
+                for nd in range(M):
+                    init['x', nd, k, name] = integ_matlab.T[nd+107*i, k].T # p['x0']  # self.ic[name][i]
 
         init['u'] = 0.
 
@@ -545,111 +540,77 @@ class COVIDVaccinationOCP:
         arg['x0'] = init
         arg['p'] = Params()
         # for i in range(M):
+
         #    for k in range(N):
         #        arg['p']['cov',i,k] = rainfall_norm[i,k]**params(pnum)['r']
         # arg['p']['cov',i,k] = np.random.random()**params(pnum)['r']
 
         arg['p']['p'] = pnum
 
-        self.arg = arg
+        for i in range(M):
+            for k in range(N):
+                arg['p']['cov',i,k,'mobility_t'] =  mobintime.to_numpy().T[i,k]
+                arg['p']['cov',i,k,'betaratio_t'] = betaratiointime.to_numpy().T[i,k]
 
-        print('Done building OCP, ready for use.')
+        
+
+        pnum[-3] = 1e5     # scale_ell
+        pnum[-2] = 0       # scale_If
+        pnum[-1] = 1e-10   # scale_V
+        pnum[-4] = 1/(9*30)  #gammaV 
+        arg['p']['p'] = pnum
+        arg['x0'] = init
+
+
+
 
     def solveOCP(self):
+        sol = solver(**arg)
+        opt = Vars(sol['x'])
+        lam_g = g(sol['lam_g'])
+        lam_x = Vars(sol['lam_x'])
+        [fnum,gnum]=nlpFun(opt,arg['p'])
+        Jgnum=nlpJac(opt, arg['p'])
+        gnum = g(gnum)   # 2times ?
+        print(f"""
+        Vaccines stockpile: 
+            {float(arg['ubg']['vaccines']):010f} total.
+            {float(g(gnum)['vaccines']):010f} spent.
+            {float((arg['ubg']['vaccines']  - g(gnum)['vaccines'])):010f} left.""")
 
-        sol = self.solver(**self.arg)
-        self.sol = sol
+    def plot_node(self, node):
+        fig, axes = plt.subplots(2,5, figsize = (20,10))
+        fig.patch.set_facecolor('white')
 
-        opt = self.Vars(sol['x'])
-        lam_g = self.g(sol['lam_g'])
-        lam_x = self.Vars(sol['lam_x'])
-        [fnum, gnum] = self.nlpFun(opt, self.arg['p'])
-        Jgnum = self.nlpJac(opt, self.arg['p'])
-        gnum = self.g(gnum)
+        node = 1
+        til =  T
 
-        self.opt = opt
-        self.lam_g = lam_g
-        self.lam_x = lam_x
+        for i, st in enumerate(states_list):
+            axes.flat[i].plot(np.array(ca.veccat(*opt['x',node,:til,st])), 
+                        linestyle=':', lw = 4, color='r')
+            if st != 'V':
+                axes.flat[i].plot(np.array(integ_matlab.T[node+107*i,:til].T), 
+                        linestyle='-', lw = 2, color='k')
 
-        return opt
-        # [fnum1,gnum1] = nlpFun(init)
-        # [fnum2,gnum2] = nlpFun(opt)
+            axes.flat[i].set_title(st);
 
-        # plt.ion()
+        axes.flat[-1].step(np.array(ca.veccat(ca.veccat(*opt['u',node,:til,'v']))),#,opt['u',node,-1,'v'])),
+                        'k',label=r"$\nu(t)$")
 
-        # dT = dt*n_int_steps
 
-        # # Plot solution from the solver:
-        # #fig, axes = plt.subplots(2, 3,num=10)
-        # #for ax in axes.flat: ax.cla()
-        # #axes[0,0].plot(sol0.t,sol0.y[0],label="S", color = 'orange', linestyle = '--', linewidth=1)
-        # #axes[0,1].plot(sol0.t,sol0.y[1],label="I", color = 'darkred', linewidth=2)
-        # #axes[0,2].plot(sol0.t,sol0.y[2],label="R", color = 'red', linestyle = '-.', linewidth=1)
-        # #axes[1,0].plot(sol0.t,sol0.y[3],label="B", color = 'blue', linestyle = '-.', linewidth=1)
-        # #axes[1,2].plot(sol0.t,sol0.y[4],label="V", color = 'orange', linewidth=2)
-        # #for ax in axes.flat:
-        # #   ax.legend(loc="upper right")
-        # #   ax.grid()
-        # #fig.tight_layout()
+    def plot_all(self):
+        fig, axes = plt.subplots(5,2, figsize = (10,10))
 
-        # for i in range(M):
-        #     fig, axes = plt.subplots(2, 3,num=2+i)
-        #     for ax in axes.flat: ax.cla()
-        #     axes[0,0].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',i,:,'S'])),label="S", color = 'orange', linestyle = '--', linewidth=1)
-        #     axes[0,1].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',i,:,'I'])),label="I", color = 'darkred', linewidth=2)
-        #     axes[0,2].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',i,:,'R'])),label="R", color = 'red', linestyle = '-.', linewidth=1)
-        #     axes[1,0].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',i,:,'B'])),label="B", color = 'blue', linestyle = '-.', linewidth=1)
-        #     axes[1,1].step(np.arange(0, T+dT, dT),np.array(ca.veccat(ca.veccat(*opt['u',i,:,'v']),opt['u',i,-1,'v'])),'k',label=r"$\nu(t)$",where="post")
-        #     #axes[1,2].step(np.arange(0, T+dT, dT),np.array(arg['p']['p',:,i]+[arg['p']['p',-1,i]]),'b',label=r"$J(t)$",where="post")
-        #     axes[1,2].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',i,:,'V'])),label="V", color = 'orange', linewidth=2)
-        #     for ax in axes.flat:
-        #         ax.legend(loc="upper right")
-        #         ax.grid()
-        #     fig.suptitle(ind2name[i])
-        #     fig.tight_layout()
 
-        # plt.figure(3+i)
-        # plt.clf()
-        # plt.spy(Jgnum)
+        for i, st in enumerate(states_list):
+            for k in range(M):
+                axes.flat[i].plot(np.array(ca.veccat(*opt['x',k,:til,st])), 
+                        lw = 2, ls = '--')
+                #if st != 'V':
+                #    axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T), 
+                #           lw = .5)
+                axes.flat[i].set_title(st);
+                axes.flat[-1].step(np.arange(len(np.array(ca.veccat(ca.veccat(*opt['u',k,:til,'v']))))),
+                                                np.array(ca.veccat(ca.veccat(*opt['u',k,:til,'v'])))
+                                )
 
-        # fig, ax = plt.subplots(1, 1,num=1)
-        # for ax in axes.flat: ax.cla()
-
-        # axt =  ax.twinx()
-
-        # ax.plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'S'])),label="S", color = 'orange', linestyle = '--', linewidth=.5)
-        # ax.plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'I'])),label="I", color = 'darkred', linewidth=2)
-        # ax.plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'R'])),label="R", color = 'red', linestyle = '-.', linewidth=.5)
-        # ax.plot(np.arange(0, T+dT, dT),1e5*np.array(ca.veccat(*opt['x',:,i,'B'])),label="B", color = 'blue', linestyle = '-.', linewidth=.5)
-        # #plt.plot(limit(np.arange(s.N+1)),'r--',label="speed limit")
-        # axt.step(np.arange(0, T+dT, dT),np.array(ca.veccat(ca.veccat(*opt['u',:,i,'v']),opt['u',-1,i,'v'])),'k',label=r"$\nu(t)$",where="post")
-        # axt.step(np.arange(0, T+dT, dT),np.array(arg['p']['p',:,i]+[arg['p']['p',-1,i]]),'b',label=r"$J(t)$",where="post")
-        # ax.legend(loc="upper right")
-        # axt.legend(loc="upper left")
-
-        # ax.set_xlabel(r'Time (days)')
-        # ax.grid()
-        # #ax.set_title('Basic reproduction number & rainfall', fontsize=14)
-        # ax.set_ylabel(r'# of individuals')
-        # axt.set_ylabel(r'Vaccination rate [vacc./day]')
-        # fig.tight_layout()
-
-        # fig, axes = plt.subplots(2, 3,num=3)
-        # for ax in axes.flat: ax.cla()
-        # axes[0,0].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'S'])).squeeze()-sol0.y[0],label="S", color = 'orange', linestyle = '--', linewidth=1)
-        # axes[0,1].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'I'])).squeeze()-sol0.y[1],label="I", color = 'darkred', linewidth=2)
-        # axes[0,2].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'R'])).squeeze()-sol0.y[2],label="R", color = 'red', linestyle = '-.', linewidth=1)
-        # axes[1,0].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'B'])).squeeze()-sol0.y[3],label="B", color = 'blue', linestyle = '-.', linewidth=1)
-        # axes[1,1].step(np.arange(0, T+dT, dT),np.array(ca.veccat(ca.veccat(*opt['u',:,i,'v']),opt['u',-1,i,'v'])),'k',label=r"$\nu(t)$",where="post")
-        # #axes[1,2].step(np.arange(0, T+dT, dT),np.array(arg['p']['p',:,i]+[arg['p']['p',-1,i]]),'b',label=r"$J(t)$",where="post")
-        # axes[1,2].plot(np.arange(0, T+dT, dT),np.array(ca.veccat(*opt['x',:,i,'V'])),label="V", color = 'orange', linewidth=2)
-        # for ax in axes.flat:
-        #     ax.legend(loc="upper right")
-        #     ax.grid()
-        # fig.tight_layout()
-
-        # ---- post-processing        ------
-        # plt.figure()
-        # plt.spy(sol.value(cadi.jacobian(opti.g,opti.x)))
-        # plt.figure()
-        # plt.spy(sol.value(cadi.hessian(opti.f+cadi.dot(opti.lam_g,opti.g),opti.x)[0]))

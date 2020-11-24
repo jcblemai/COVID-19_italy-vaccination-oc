@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-# In[21]:
+# In[1]:
 
 
 import casadi as ca
@@ -27,7 +27,6 @@ eng.cd('geography-paper-master/', nargout=0)
 eng.run('single_build.m', nargout=0)
 
 model_size = 107
-model_size = 20
 
 s = ItalySetup(model_size)
 
@@ -81,7 +80,7 @@ p_dict.pop('epsilonI')
 C = mobmat
 
 
-# In[22]:
+# In[2]:
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node):
@@ -112,7 +111,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     return rhs, rhs_ell
 
 
-# In[23]:
+# In[3]:
 
 
 setup = s
@@ -145,8 +144,8 @@ states = cat.struct_symSX(states)
 controls = cat.struct_symSX(['v', 'mob'])
 [v, mob] = controls[...]
 
-covar = cat.struct_symSX(['J'])
-[J] = covar[...]
+covar = cat.struct_symSX(['mobility_t','betaratio_t'])
+[mobility_t, betaratio_t] = covar[...]
 
 params = cat.struct_symSX(list(model_params.keys()) + ['scale_ell', 'scale_If', 'scale_v'])
 [deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV,
@@ -173,20 +172,20 @@ rhs_ell = ca.veccat(*rhs_ell)  # mod
 
 
 
-# In[24]:
+# In[4]:
 
 
 frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX],
                            [rhs, rhs_ell[1]])#scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
 
 
-# In[25]:
+# In[5]:
 
 
 frhs
 
 
-# In[26]:
+# In[6]:
 
 
 dt = T / N / n_int_steps  # length of an integration interval
@@ -202,18 +201,18 @@ ell_next = dt / 6 * (
 rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
 
-# In[27]:
+# In[7]:
 
 
-# # Overwrite last cell with eurler.
-# dt = T / N / n_int_steps  # length of an integration interval
-# a, b = frhs(states, controls, covar, params, pop_nodeSX)
-# x_next = states + dt*a
-# ell_next = dt*b
-# rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+# Overwrite last cell with eurler.
+dt = T / N / n_int_steps  # length of an integration interval
+a, b = frhs(states, controls, covar, params, pop_nodeSX)
+x_next = states + dt*a
+ell_next = dt*b
+rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
 
-# In[28]:
+# In[8]:
 
 
 x_ = ca.veccat(*states[...])
@@ -234,7 +233,7 @@ for k in range(n_int_steps):
 
 
 
-# In[29]:
+# In[9]:
 
 
 rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
@@ -249,7 +248,7 @@ ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
 #                   scale_v * v * v])  # Very dependent on regularization factor
 
 
-# In[30]:
+# In[10]:
 
 
 Vars = cat.struct_symMX([
@@ -267,7 +266,7 @@ Params = cat.struct_symMX([
 ])
 
 
-# In[31]:
+# In[11]:
 
 
 lbx = Vars(-np.inf)
@@ -280,17 +279,32 @@ reg = 0
 cdot_T = 0
 dyn = [None] * N
 spatial = [None] * N
+
 Sgeq0 = [None] * N
 
-mob_prun = -1
-#mob_prun = 0.0001
-mob_prun = .002
-#mob_prun = .01 # not tested
+mob_prun = 0.0006
+
+# Pruning mobility once:
+k=0
+mobility_history = []
+mobK = mobintime.to_numpy().T[:,k]
+betaR =  betaratiointime.to_numpy().T[:,k]
+C = r*mobfrac.flatten()*mobK*mobmat
+np.fill_diagonal(C,1-C.sum(axis=1)+ C.diagonal())
+print(f'pruning {C[C<mob_prun].size} non-diagonal mobility elements of {C.size-M}.')  
+C[C<mob_prun] = 0 # Prune elements
+mobility_history.append(C)
+
+mobmat_pr = np.copy(mobmat)
+
+
+mobmat_pr[mobility_history[0] == 0] = 0
+print(f'nnz before: {np.count_nonzero(mobmat)}, after: {np.count_nonzero(mobmat_pr)}')
 
 for k in range(N):
-    mobK = mobintime.to_numpy().T[:,k]
-    betaR = betaratiointime.to_numpy().T[:,k]
-    C = r*mobfrac.flatten()*mobK*mobmat
+    mobK = Params['cov',:,k,'mobility_t'] #mobintime.to_numpy().T[:,k]
+    betaR =  Params['cov',:,k,'mobility_t']# betaratiointime.to_numpy().T[:,k]
+    C = r*mobfrac.flatten()*mobK*mobmat_pr
     np.fill_diagonal(C,1-C.sum(axis=1)+ C.diagonal())
     
     dyn[k] = []
@@ -298,9 +312,10 @@ for k in range(N):
     Sgeq0[k] = []
     Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*Vars['x', :, k, 'S']), ca.veccat(*Vars['x', :, k, 'E']),                              ca.veccat(*Vars['x', :, k, 'P']), ca.veccat(*Vars['x', :, k, 'R']),                              ca.veccat(*Vars['x', :, k, 'A']), ca.veccat(*Vars['x', :, k, 'I'])
 
-    if k == 0 or k == N-1:
-        print(f'pruning {C[C<mob_prun].size} non-diagonal mobility elements of {C.size-M}.')  
-    C[C<mob_prun] = 0 # Prune elements
+    #if k == 0 or k == N-1:
+    #    print(f'pruning {C[C<mob_prun].size} non-diagonal mobility elements of {C.size-M}.')  
+    #C[C<mob_prun] = 0 # Prune elements
+    #mobility_history.append(C)
     
     foi_sup = []
     foi_inf = []
@@ -332,7 +347,6 @@ for k in range(N):
         mob_ik = sum(C[i, m] * foi[m] for m in range(M))
         
         spatial[k].append(Vars['u', i, k, 'mob'] - mob_ik) # spatial, vaccines and dyn are put in g(x), with constraints that spatial and dyn are equal to zero
-
         VacPpl = sum(Vars['x', i, k,name] for name in ['S','E','P','A','R'])
         Sgeq0[k].append( Vars['x', i, k,'S'] - Vars['u', i, k, 'v']/(VacPpl+1e-10) )
         # thus imposing the dynamics and coupling.
@@ -359,7 +373,25 @@ f /= T  # Average over interval for cost ^ but not terminal cost
 
 
 
-# In[32]:
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[12]:
 
 
 print('Writing constraints, ...', end='')
@@ -367,7 +399,7 @@ g = cat.struct_MX([
     cat.entry("dyn", expr=dyn),
     cat.entry("spatial", expr=spatial),
     cat.entry("vaccines", expr=vaccines),
-    cat.entry("Sgeq0", expr=Sgeq0),
+    cat.entry("Sgeq0", expr=Sgeq0)
 ])
 
 costTerms = ca.Function('costTerms', [Vars, Params], [cases, reg])
@@ -378,14 +410,14 @@ lbg = g(0)
 ubg = g(0)
 
 
-ubg['vaccines'] = 2000. * M
+ubg['vaccines'] = 2000*(T*.6)*M #8e6 #*M
 lbg['vaccines'] = -np.inf
 
 ubg['Sgeq0'] = np.inf
 
-optimize = 1
+optimize = 0
 lbx['u', :, :, 'v'] = 0.
-ubx['u', :, :, 'v'] = 1000 * optimize  # = 0 if we don't want to optimize
+ubx['u', :, :, 'v'] = 2000 * optimize  # = 0 if we don't want to optimize
 # ubx['u',:,:,'v'] = 0
 #ubx['u', :, :1, 'v'] = 0.
 
@@ -414,7 +446,7 @@ print('Building Solver...', end='')
 
 options = {}
 options['ipopt'] = {}
-options['ipopt']["linear_solver"] = "ma57"
+#options['ipopt']["linear_solver"] = "ma57"
 options['ipopt']["linear_solver"] = "ma86"
 # options['ipopt']["linear_solver"] = "ma86"
 # options['ipopt']["linear_solver"] = "ma97"
@@ -449,7 +481,7 @@ print('DONE')
 
 
 
-# In[33]:
+# In[13]:
 
 
 integ_matlab = np.array(eng.eval('x'))
@@ -472,32 +504,72 @@ arg['ubx'] = ubx
 arg['x0'] = init
 arg['p'] = Params()
 # for i in range(M):
+
 #    for k in range(N):
 #        arg['p']['cov',i,k] = rainfall_norm[i,k]**params(pnum)['r']
 # arg['p']['cov',i,k] = np.random.random()**params(pnum)['r']
 
 arg['p']['p'] = pnum
 
+for i in range(M):
+    for k in range(N):
+        arg['p']['cov',i,k,'mobility_t'] =  mobintime.to_numpy().T[i,k]
+        arg['p']['cov',i,k,'betaratio_t'] = betaratiointime.to_numpy().T[i,k]
 
-# In[34]:
+
+# In[ ]:
+
+
+
+
+
+# In[14]:
+
+
+#arg['ubx']['u', :, :, 'v']  = 0
+
+
+# In[15]:
+
+
+# If restart:
+#for i, name in enumerate(states.keys()):
+#    for k in range(N + 1):
+#        for nd in range(M):
+#            init['x', nd, k, name] = opt['x',nd, k, name]
+#for k in range(N):
+#    for nd in range(M):       
+#        init['u', nd, k, 'v'] = opt['u',nd,k,'v']        
+    
+
+
+# In[16]:
 
 
 #pnum.append(scale_ell)
 #pnum.append(scale_If)
 #pnum.append(scale_v)
-pnum[-3] = 1e8
+pnum[-3] = 1e5
 pnum[-2] = 0
-pnum[-1] = 1e-30
+pnum[-1] = 1e-10
+pnum[-4] = 1/(9*30)  #gammaV 
 arg['p']['p'] = pnum
+arg['x0'] = init
 
 
-# In[35]:
+# In[ ]:
 
 
-arg['p']['p']
 
 
-# In[36]:
+
+# In[ ]:
+
+
+
+
+
+# In[17]:
 
 
 sol = solver(**arg)
@@ -506,7 +578,7 @@ lam_g = g(sol['lam_g'])
 lam_x = Vars(sol['lam_x'])
 [fnum,gnum]=nlpFun(opt,arg['p'])
 Jgnum=nlpJac(opt, arg['p'])
-gnum = g(gnum)
+gnum = g(gnum)   # 2times ?
 print(f"""
 Vaccines stockpile: 
     {float(arg['ubg']['vaccines']):010f} total.
@@ -520,19 +592,15 @@ Vaccines stockpile:
 
 
 
-# In[ ]:
-
-
-
-
-
-# In[37]:
+# In[18]:
 
 
 import matplotlib.pyplot as plt
 fig, axes = plt.subplots(2,5, figsize = (20,10))
+fig.patch.set_facecolor('white')
+
 node = 1
-til =  30#-1
+til =  T
 
 for i, st in enumerate(states_list):
     axes.flat[i].plot(np.array(ca.veccat(*opt['x',node,:til,st])), 
@@ -547,24 +615,25 @@ axes.flat[-1].step(np.array(ca.veccat(ca.veccat(*opt['u',node,:til,'v']))),#,opt
                   'k',label=r"$\nu(t)$");
 
 
-# In[38]:
+# In[19]:
 
 
 import matplotlib.pyplot as plt
 fig, axes = plt.subplots(5,2, figsize = (10,10))
 node = 1
-til = 30 # -1
+til =  -1
 
 for i, st in enumerate(states_list):
     for k in range(M):
         axes.flat[i].plot(np.array(ca.veccat(*opt['x',k,:til,st])), 
                    lw = 2, ls = '--')
-        if st != 'V':
-            axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T), 
-                   lw = .5)
+        #if st != 'V':
+        #    axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T), 
+        #           lw = .5)
         axes.flat[i].set_title(st);
-        axes.flat[-1].step(np.arange(til),
-            np.array(ca.veccat(ca.veccat(*opt['u',k,:til,'v']))))
+        axes.flat[-1].step(np.arange(len(np.array(ca.veccat(ca.veccat(*opt['u',k,:til,'v']))))),
+                                         np.array(ca.veccat(ca.veccat(*opt['u',k,:til,'v'])))
+                          )
 
 
 # In[ ]:
@@ -573,46 +642,154 @@ for i, st in enumerate(states_list):
 
 
 
-# In[39]:
+# In[20]:
 
 
 import networkx
-grph = networkx.from_numpy_matrix(C)
+import geopandas as gpd
+
+
+# In[ ]:
+
+
+
+
+
+# In[ ]:
+
+
+
+
+
+# In[21]:
+
+
+G = networkx.Graph()
+G.position = {}
+G.population = {}
+G.comp = {}
+G.epi = {}
+s.shp['vacc'] = np.nan
+s.shp['Rend'] = np.nan
+for i, node in enumerate(s.ind2name):
+    G.add_node(node)
+    G.position[node] = (s.pos_node[i,0], s.pos_node[i,1])
+    G.population[node] = s.pop_node[i]
+    #G.comp[node] = (ocp.ic['S'][i], ocp.ic['I'][i],ocp.ic['R'][i])
+    try:
+        G.epi[node] = {'vacc': sum(np.array(ca.veccat(ca.veccat(*opt['u',i,:,'v']))))[0],
+                   'Rend':                            float(opt['x',i,-1,'R'])}
+        s.shp.loc[i, 'vacc'] = sum(np.array(ca.veccat(ca.veccat(*opt['u',i,:,'v']))))[0]
+        s.shp.loc[i, 'Rend'] = float(opt['x',i,-1,'R'])
+    except NameError as e:
+        #print(f'epi data failed, {e}')
+        G.epi[node] = {'vacc': np.nan,
+                   'Rend':     np.nan}
+        s.shp.loc[i, 'vacc'] = np.nan
+        s.shp.loc[i, 'Rend'] = np.nan
+        
+    s.shp.loc[i, 'population'] =  s.pop_node[i] # overwrite 
+    for j, connection in enumerate(mobility_history[0][i]):
+        if connection != 0:
+            G.add_edge(node, s.ind2name[j], weight=connection)
+
+
+# In[ ]:
+
+
+
+
+
+# In[22]:
+
+
+G.number_of_edges()
+
+
+# In[23]:
+
+
+fig, ax = plt.subplots(1,1,figsize=(20, 20))
+
+
+networkx.draw(G, 
+         G.position, 
+         node_size=1000/max(s.pop_node) * np.array([G.population[v] for v in G]),
+          #node_color=[float(G.degree(v)) for v in G],
+        #node_color=[G.population[v] for v in G],
+          node_color=[G.epi[v]['vacc']/G.population[v] for v in G],
+          width = 200* np.array([max(a['weight'],0.001) for u,v,a in G.edges(data=True)]),
+          edge_color=10* np.array([a['weight'] for u,v,a in G.edges(data=True)]),
+          edge_cmap = mpl.cm.viridis,
+          ax = ax,
+         with_labels=False
+       )
+
+#     # scale the axes equally
+#plt.xlim(min(s.pos_node[:,0]) - 100000, max(s.pos_node[:,0])+ 100000)
+#plt.ylim(min(s.pos_node[:,1]) - 100000, max(s.pos_node[:,1])+ 100000)
+
+#s.shp.plot(ax = ax, column='' cmap='OrRd', facecolor="none", edgecolor="black")
+
+s.shp.boundary.plot(ax = ax,  edgecolor="black", linewidth = .11)
+
+plt.draw()
+
+
+# In[24]:
+
+
+fig, ax = plt.subplots(1,1,figsize=(10, 10))
+s.shp.plot(ax = ax, column='Rend', cmap='OrRd')#,  edgecolor="black") #facecolor="none",
+
+
+# In[25]:
+
+
+import seaborn as sns
+fig, ax = plt.subplots(1,1,figsize=(4, 4))
+plt.scatter(s.shp['vacc']/s.shp['population'], s.shp['Rend']/s.shp['population'], c= s.shp['population'])
+ax.set_xlabel("prop. vaccinated")
+ax.set_ylabel("prop. recovered");
+ax.set_xlim(0)
+ax.set_ylim(0, 0.0002)
+
+
+# In[26]:
+
+
+G
+
+
+# In[27]:
+
+
+sns.scatterplot(s.shp['vacc'], s.shp['population']*100, hue= s.shp['population'])
+
+
+# In[28]:
+
+
+grph = networkx.from_numpy_matrix(mobility_history[0])
 networkx.draw(grph)
 
 
-# In[43]:
+# In[29]:
 
 
-grph.number_of_edges()
+# Find cutoff:
+for u,v,a in G.edges('Sassari', data=True):
+    print(a['weight']) 
 
 
-# In[ ]:
+# In[30]:
 
 
+mobintime.plot(legend=False)
 
 
-
-# In[40]:
-
-
-a
+# In[31]:
 
 
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
-
-
-# In[ ]:
-
-
-
+betaratiointime.plot(legend=False)
 
