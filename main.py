@@ -1,83 +1,94 @@
 import copy
-
 import casadi as ca
 import matlab.engine
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from ItalySetup import ItalySetup
-from covidOCP import utils
 import networkx
+from ItalySetup import ItalySetup
+from covidOCP import ocp_utils
+from covidOCP import COVIDVaccinationOCP
+
+nx = 9
+states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 eng = matlab.engine.start_matlab()
 eng.cd('geography-paper-master/', nargout=0)
 
-solve_every = 10  # days
-model_size = 107  # node s
+model_size = 107  # nodes
 
 # Horizon for each problem
-N = 30
+
 T = 31
+N = T - 1
+n_int_steps = 1
 
 setup = ItalySetup(model_size)
+M = setup.nnodes
 
-n_int_steps = 1
 freq = '1D'  # Unsupported to change this
 model_days = pd.date_range(setup.start_date, setup.end_date, freq=freq)
-model_step = pd.date_range(setup.start_date, setup.end_date, freq=freq)
-mobintime = setup.mobility_ts.resample(freq).mean()
-# N = len(model_step) - 1
-# T = len(model_days)
-
 
 eng.run('single_build.m', nargout=0)
-
-nx = 9
-states_list = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-states = states_list
-S, E, P, I, A, Q, H, R, V = np.arange(nx)
-
 integ_matlab = np.array(eng.eval('x'))
 
-p_dict, mobfrac, mobmat, betaratiointime, x0 = utils.get_parameters_from_matlab(eng, setup, model_size, model_days,freq)
 
-dt = T / N / n_int_steps
+class OCParameters:
+    def __init__(self):
+        self.mobintime = setup.mobility_ts.resample(freq).mean()
+        p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = ocp_utils.get_parameters_from_matlab(eng,
+                                                                                                                setup,
+                                                                                                                model_size,
+                                                                                                                model_days,
+                                                                                                                freq)
 
-obj_params = {
-    'scale_ell': 1e0,
-    'scale_If': 0,
-    'scale_v': 1e-6
-}
-betaP0 = p_dict['betaP0']
-epsilonA = p_dict['epsilonA']
-epsilonI = p_dict['epsilonI']
-r = p_dict['r']
+        self.params_structural = {'betaP0': p_dict['betaP0'],
+                                  'epsilonA': p_dict['epsilonA'],
+                                  'epsilonI': p_dict['epsilonI'],
+                                  'r': p_dict['r']}
 
-p_dict.pop('betaP0')
-p_dict.pop('r')
-p_dict.pop('epsilonA')
-p_dict.pop('epsilonI')
-C = mobmat
+        p_dict.pop('betaP0')
+        p_dict.pop('r')
+        p_dict.pop('epsilonA')
+        p_dict.pop('epsilonI')
 
-model_params = copy.copy(p_dict)
-ind2name = setup.ind2name
+        self.model_params = copy.copy(p_dict)
 
-pop_node = setup.pop_node
+        self.hyper_params = {
+            'scale_ell': 1e0,
+            'scale_If': 0,
+            'scale_v': 1e-6
+        }
 
-M = setup.nnodes
-mobility = setup.mobility
+        mob_prun = 0.0006
+        self.mobmat_pr = self.prune_mobility(mob_prun)
 
-c = setup.mobility
+    def prune_mobility(self, mob_prun):
+        mobK = self.mobintime.to_numpy().T[:, 0]
+        betaR = self.betaratiointime.to_numpy().T[:, 0]
+        C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat
+        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        print(f'pruning {C[C < mob_prun].size} non-diagonal mobility elements of {C.size - M}.')
+        C[C < mob_prun] = 0  # Prune elements
+        mobmat_pr = np.copy(self.mobmat)
 
-scale_ell = obj_params['scale_ell']
-scale_If = obj_params['scale_If']
-scale_v = obj_params['scale_v']
-pnum = utils.params_to_vector(model_params)
+        mobmat_pr[C == 0] = 0
+        print(f'nnz before: {np.count_nonzero(self.mobmat)}, after: {np.count_nonzero(mobmat_pr)}')
 
-pnum.append(scale_ell)
-pnum.append(scale_If)
-pnum.append(scale_v)
+        return mobmat_pr
+
+    def get_pvector(self):
+        pvector = ocp_utils.params_to_vector(self.model_params)
+        pvector.append(ocp_utils.params_to_vector(self.hyper_params))
+        pvector_names = list(self.model_params.keys()) + list(self.hyper_params.keys())
+        return pvector, pvector_names
+
+
+p = OCParameters()
+
+ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, T=T, n_int_steps=n_int_steps,
+                                              s=setup, p=p)
 
 
 # arg['ubx']['u', :, :, 'v']  = 0

@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 nx = 9
+states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
 
