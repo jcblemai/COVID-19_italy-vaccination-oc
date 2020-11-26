@@ -10,6 +10,8 @@ from ItalySetup import ItalySetup
 from covidOCP import ocp_utils
 from covidOCP import COVIDVaccinationOCP
 
+# Check if convariates in N or T
+
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
@@ -19,9 +21,7 @@ eng.cd('geography-paper-master/', nargout=0)
 model_size = 10  # nodes
 
 # Horizon for each problem
-
-T = 31
-N = T - 1
+N = 30
 n_int_steps = 1
 
 setup = ItalySetup(model_size)
@@ -33,11 +33,11 @@ model_days = pd.date_range(setup.start_date, setup.end_date, freq=freq)
 eng.run('single_build.m', nargout=0)
 integ_matlab = np.array(eng.eval('x'))
 
-matlab_integration = np.zeros((M, T, nx))
+matlab_initial = np.zeros((M, N+1, nx))
 for i, name in enumerate(states_names):
-    for k in range(T):
+    for k in range(N+1):
         for nd in range(M):
-            matlab_integration[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
+            matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
 
 
 class OCParameters:
@@ -45,7 +45,7 @@ class OCParameters:
         self.mobintime = setup.mobility_ts.resample(freq).mean()
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = ocp_utils.get_parameters_from_matlab(eng,
                                                                                                                 setup,
-                                                                                                                model_size,
+                                                                                                                M,
                                                                                                                 model_days,
                                                                                                                 freq)
 
@@ -62,9 +62,9 @@ class OCParameters:
         self.model_params = copy.copy(p_dict)
 
         self.hyper_params = {
-            'scale_ell': 1e0,
+            'scale_ell': 1e5,
             'scale_If': 0,
-            'scale_v': 1e-6
+            'scale_v': 1e-10
         }
 
         mob_prun = 0.0006
@@ -98,8 +98,36 @@ class OCParameters:
 
 p = OCParameters()
 
-ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, T=T, n_int_steps=n_int_steps,
+ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
                                               setup=setup, parameters=p)
+control_initial = np.zeros((M, N))
+max_vacc_rate = np.zeros((M, N))
+for k in range(N):
+    for nd in range(M):
+        max_vacc_rate[nd, k] = 2000
+        control_initial[nd, k] = 0
+
+ocp.update(parameters=p,
+           max_total_vacc=10000,
+           max_vacc_rate=max_vacc_rate,
+           states_initial=matlab_initial,
+           control_initial=control_initial)
+
+ocp.solveOCP()
+
+til = N+1
+opt = ocp.opt
+fig, axes = plt.subplots(5, 2, figsize=(10, 10))
+for i, st in enumerate(states_names):
+    for k in range(M):
+        axes.flat[i].plot(np.array(ca.veccat(*opt['x', k, :til, st])), lw=2, ls='--')
+        # if st != 'V':
+        #    axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T),
+        #           lw = .5)
+        axes.flat[i].set_title(st)
+        axes.flat[-1].step(np.arange(len(np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v']))))),
+                           np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v'])))
+                           )
 
 
 # arg['ubx']['u', :, :, 'v']  = 0

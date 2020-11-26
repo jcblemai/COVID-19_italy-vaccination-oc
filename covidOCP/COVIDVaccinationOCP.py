@@ -47,17 +47,16 @@ def mobility_graph(mobility, ind2name, pos_node, pop_node, opt, N):
 
 
 class COVIDVaccinationOCP:
-    def __init__(self, N, T, n_int_steps, setup, parameters, integ='euler'):
+    def __init__(self, N, n_int_steps, setup, parameters, integ='euler'):
         self.N = N
-        self.T = T
         self.n_int_steps = n_int_steps
         self.setup = setup
         self.parameters = parameters
-        M = setup.nnodes
+        self.M = M = setup.nnodes
 
         _, pvector_names = parameters.get_pvector()
 
-        dt = T / N / n_int_steps
+        dt = (N+1) / N / n_int_steps
 
         states = cat.struct_symSX(states_names)
         [S, E, P, I, A, Q, H, R, V] = states[...]
@@ -185,9 +184,9 @@ class COVIDVaccinationOCP:
                 VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S', 'E', 'P', 'A', 'R'])
                 Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines += self.Vars['u', i, k, 'v'] * T / N
+                vaccines += self.Vars['u', i, k, 'v'] * (N+1) / N
 
-        f /= T  # Average over interval for cost ^ but not terminal cost
+        f /= (N+1)  # Average over interval for cost ^ but not terminal cost
 
         print('-> Writing constraints, ...', end='')
         self.g = cat.struct_MX([
@@ -228,8 +227,9 @@ class COVIDVaccinationOCP:
         self.lam_x = None
         self.Jgnum = None
         self.gnum = None
+        self.arg = {}
 
-    def update(self, parameters, max_vacc, vacc_rate, states_initial, control_initial=0):
+    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial):
         # This initialize
         lbg = self.g(0)
         ubg = self.g(0)
@@ -237,7 +237,7 @@ class COVIDVaccinationOCP:
         lbx = self.Vars(-np.inf)
         ubx = self.Vars(np.inf)
 
-        ubg['vaccines'] = max_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
+        ubg['vaccines'] = max_total_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
         lbg['vaccines'] = -np.inf
 
         ubg['Sgeq0'] = np.inf
@@ -245,22 +245,22 @@ class COVIDVaccinationOCP:
         lbx['u', :, :, 'v'] = 0.
         for k in range(self.N):
             for nd in range(self.M):
-                ubx['u', nd, k, 'v'] = vacc_rate[nd, k]
+                ubx['u', nd, k, 'v'] = max_vacc_rate[nd, k]
 
         # Set initial conditions as constraints
-        for cp, name in enumerate(self.states.keys()):
+        for cp, name in enumerate(states_names):
             for i in range(self.M):
                 lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i * nx + cp]
 
         # ----> Starting value of the optimizer
         init = self.Vars(0)
         for i, name in enumerate(states_names):
-            for k in range(self.T):
+            for k in range(self.N + 1):
                 for nd in range(self.M):
                     init['x', nd, k, name] = states_initial[nd, k, i]
 
-        for k in range(self.T):
-            for nd in range(self.N):
+        for k in range(self.N):
+            for nd in range(self.M):
                 init['u', nd, k] = control_initial[nd, k]
 
         self.arg = {'lbg': lbg,
