@@ -52,6 +52,7 @@ class COVIDVaccinationOCP:
         self.T = T
         self.n_int_steps = n_int_steps
         self.setup = setup
+        self.parameters = parameters
         M = setup.nnodes
 
         _, pvector_names = parameters.get_pvector()
@@ -130,7 +131,7 @@ class COVIDVaccinationOCP:
             ),
         ])
 
-        f, vaccines, cases, reg, cdot_T = 0
+        f = vaccines = cases = reg = cdot_T = 0
 
         dyn = [None] * N
         spatial = [None] * N
@@ -139,7 +140,7 @@ class COVIDVaccinationOCP:
         for k in range(N):
             mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
             betaR = self.Params['cov', :, k, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
-            C = parameters.params_structural['r'] * mobfrac.flatten() * mobK * mobmat
+            C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
             np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
 
             Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
@@ -148,11 +149,13 @@ class COVIDVaccinationOCP:
             foi_sup = []
             foi_inf = []
             for n in range(M):
-                foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (Pk[n] + parameters.params_structural['epsilonA']* Ak[n]))
+                foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
+                        Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
                 foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n])
             foi = []
             for m in range(M):
-                foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] * parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
+                foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
+                            parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                            (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
 
             print(f'{k}:', end='')
@@ -195,23 +198,6 @@ class COVIDVaccinationOCP:
         ])
 
         # costTerms = ca.Function('costTerms', [self.Vars, self.Params], [cases, reg])
-        # This initialize
-        lbg = self.g(0)
-        ubg = self.g(0)
-        lbx = self.Vars(-np.inf)
-        ubx = self.Vars(np.inf)
-        ubg['vaccines'] = 2000 * (T * .6) * M  # 8e6 #*M
-        lbg['vaccines'] = -np.inf
-        ubg['Sgeq0'] = np.inf
-        optimize = 0
-        lbx['u', :, :, 'v'] = 0.
-        ubx['u', :, :, 'v'] = 2000 * optimize  # = 0 if we don't want to optimize
-        # ubx['u',:,:,'v'] = 0
-        # ubx['u', :, :1, 'v'] = 0.
-        # Set initial conditions as constraints
-        for cp, name in enumerate(self.states.keys()):
-            for i in range(M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = x0[i * nx + cp]
         print('DONE')
 
         print('-> Building NLP function...', end='')
@@ -222,7 +208,7 @@ class COVIDVaccinationOCP:
         # 'g' : is a function that goes lbg < g(x,p) < ubg. If you want equality
         #     constraint then ubg = lbg = the number yoiu want it to be.
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
-        self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, g])
+        self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
         print('DONE')
 
         print('-> Building Jacobian function...', end='')
@@ -243,36 +229,53 @@ class COVIDVaccinationOCP:
         self.Jgnum = None
         self.gnum = None
 
-    def update(self, parameters, state_initial, control_initial, covariates, optimize=True):
+    def update(self, parameters, max_vacc, vacc_rate, states_initial, control_initial=0):
+        # This initialize
+        lbg = self.g(0)
+        ubg = self.g(0)
+
+        lbx = self.Vars(-np.inf)
+        ubx = self.Vars(np.inf)
+
+        ubg['vaccines'] = max_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
+        lbg['vaccines'] = -np.inf
+
+        ubg['Sgeq0'] = np.inf
+
+        lbx['u', :, :, 'v'] = 0.
+        for k in range(self.N):
+            for nd in range(self.M):
+                ubx['u', nd, k, 'v'] = vacc_rate[nd, k]
+
+        # Set initial conditions as constraints
+        for cp, name in enumerate(self.states.keys()):
+            for i in range(self.M):
+                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i * nx + cp]
+
+        # ----> Starting value of the optimizer
         init = self.Vars(0)
-
-        for i, name in enumerate(self.states.keys()):
-            for k in range(self.N + 1):
-                # init['x',:,k,name] = sol0.y[i,k]
+        for i, name in enumerate(states_names):
+            for k in range(self.T):
                 for nd in range(self.M):
-                    init['x', nd, k, name] = integ_matlab.T[nd + 107 * i, k].T  # p['x0']  # self.ic[name][i]
+                    init['x', nd, k, name] = states_initial[nd, k, i]
 
-        init['u'] = 0.
+        for k in range(self.T):
+            for nd in range(self.N):
+                init['u', nd, k] = control_initial[nd, k]
 
         self.arg = {'lbg': lbg,
                     'ubg': ubg,
                     'lbx': lbx,
                     'ubx': ubx,
                     'x0': init,
-                    'p': Params()}
+                    'p': self.Params()}
 
-        self.arg['p']['p'] = pvector
+        self.arg['p']['p'], _ = self.parameters.get_pvector()
 
-        for i in range(self.M):
+        for nd in range(self.M):
             for k in range(self.N):
-                self.arg['p']['cov', i, k, 'mobility_t'] = mobintime.to_numpy().T[i, k]
-                self.arg['p']['cov', i, k, 'betaratio_t'] = betaratiointime.to_numpy().T[i, k]
-
-        pnum[-3] = 1e5  # scale_ell
-        pnum[-2] = 0  # scale_If
-        pnum[-1] = 1e-10  # scale_V
-        pnum[-4] = 1 / (9 * 30)  # gammaV
-        self.arg['p']['p'] = pnum
+                self.arg['p']['cov', nd, k, 'mobility_t'] = self.parameters.mobintime_arr[nd, k]
+                self.arg['p']['cov', nd, k, 'betaratio_t'] = self.parameters.betaratiointime_arr[nd, k]
 
     def solveOCP(self, plot_iterates=False):
         self.sol = self.solver(**self.arg)
@@ -295,15 +298,15 @@ class COVIDVaccinationOCP:
         til = self.T
 
         for i, st in enumerate(states_names):
-            axes.flat[i].plot(np.array(ca.veccat(*opt['x', node, :til, st])),
+            axes.flat[i].plot(np.array(ca.veccat(*self.opt['x', node, :til, st])),
                               linestyle=':', lw=4, color='r')
-            if st != 'V':
-                axes.flat[i].plot(np.array(integ_matlab.T[node + 107 * i, :til].T),
-                                  linestyle='-', lw=2, color='k')
+            #if st != 'V':
+                #axes.flat[i].plot(np.array(integ_matlab.T[node + 107 * i, :til].T),
+                #                  linestyle='-', lw=2, color='k')
 
             axes.flat[i].set_title(st);
 
-        axes.flat[-1].step(np.array(ca.veccat(ca.veccat(*opt['u', node, :til, 'v']))),  # ,opt['u',node,-1,'v'])),
+        axes.flat[-1].step(np.array(ca.veccat(ca.veccat(*self.opt['u', node, :til, 'v']))),  # ,opt['u',node,-1,'v'])),
                            'k', label=r"$\nu(t)$")
 
     def plot_all(self, opt):

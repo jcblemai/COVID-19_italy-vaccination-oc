@@ -16,7 +16,7 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 eng = matlab.engine.start_matlab()
 eng.cd('geography-paper-master/', nargout=0)
 
-model_size = 107  # nodes
+model_size = 10  # nodes
 
 # Horizon for each problem
 
@@ -32,6 +32,12 @@ model_days = pd.date_range(setup.start_date, setup.end_date, freq=freq)
 
 eng.run('single_build.m', nargout=0)
 integ_matlab = np.array(eng.eval('x'))
+
+matlab_integration = np.zeros((M, T, nx))
+for i, name in enumerate(states_names):
+    for k in range(T):
+        for nd in range(M):
+            matlab_integration[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
 
 
 class OCParameters:
@@ -64,6 +70,10 @@ class OCParameters:
         mob_prun = 0.0006
         self.mobmat_pr = self.prune_mobility(mob_prun)
 
+        # Numpy array from dataframes:
+        self.mobintime_arr = self.mobintime.to_numpy().T
+        self.betaratiointime_arr = self.betaratiointime.to_numpy().T
+
     def prune_mobility(self, mob_prun):
         mobK = self.mobintime.to_numpy().T[:, 0]
         betaR = self.betaratiointime.to_numpy().T[:, 0]
@@ -80,7 +90,8 @@ class OCParameters:
 
     def get_pvector(self):
         pvector = ocp_utils.params_to_vector(self.model_params)
-        pvector.append(ocp_utils.params_to_vector(self.hyper_params))
+        for v in ocp_utils.params_to_vector(self.hyper_params):
+            pvector.append(v)
         pvector_names = list(self.model_params.keys()) + list(self.hyper_params.keys())
         return pvector, pvector_names
 
@@ -88,7 +99,7 @@ class OCParameters:
 p = OCParameters()
 
 ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, T=T, n_int_steps=n_int_steps,
-                                              s=setup, p=p)
+                                              setup=setup, parameters=p)
 
 
 # arg['ubx']['u', :, :, 'v']  = 0
