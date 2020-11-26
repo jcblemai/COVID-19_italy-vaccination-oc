@@ -3,6 +3,7 @@ import casadi.tools as cat
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 if "Agg" not in mpl.get_backend():
     mpl.interactive(True)
@@ -228,8 +229,9 @@ class COVIDVaccinationOCP:
         self.Jgnum = None
         self.gnum = None
         self.arg = {}
+        self.scenario_name = 'no_update'
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial):
+    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, scenario_name = 'test'):
         # This initialize
         lbg = self.g(0)
         ubg = self.g(0)
@@ -277,7 +279,9 @@ class COVIDVaccinationOCP:
                 self.arg['p']['cov', nd, k, 'mobility_t'] = self.parameters.mobintime_arr[nd, k]
                 self.arg['p']['cov', nd, k, 'betaratio_t'] = self.parameters.betaratiointime_arr[nd, k]
 
-    def solveOCP(self, plot_iterates=False):
+        self.scenario_name = scenario_name
+
+    def solveOCP(self, save = True):
         self.sol = self.solver(**self.arg)
         self.opt = self.Vars(self.sol['x'])
         self.lam_g = self.g(self.sol['lam_g'])
@@ -291,34 +295,26 @@ class COVIDVaccinationOCP:
             {float(self.g(gnum)['vaccines']):010f} spent.
             {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):010f} left.""")
 
-    def plot_node(self, node):
-        fig, axes = plt.subplots(2, 5, figsize=(20, 10))
-        fig.patch.set_facecolor('white')
+        if save:
+            self.saveOCP()
 
-        til = self.T
+    def saveOCP(self):
+        results = pd.DataFrame(columns=['date', 'comp', 'place', 'value'])
 
-        for i, st in enumerate(states_names):
-            axes.flat[i].plot(np.array(ca.veccat(*self.opt['x', node, :til, st])),
-                              linestyle=':', lw=4, color='r')
-            #if st != 'V':
-                #axes.flat[i].plot(np.array(integ_matlab.T[node + 107 * i, :til].T),
-                #                  linestyle='-', lw=2, color='k')
+        for nd in range(self.M):
+            results = pd.concat(
+                [results, pd.DataFrame.from_dict(
+                    {'value': np.array(ca.veccat(ca.veccat(*self.opt['u', nd, :, 'v']), self.opt['u', nd, -1, 'v'])).ravel(),
+                     'date': self.setup.model_days,
+                     'place': self.setup.ind2name[nd],
+                     'placeID': int(nd),
+                     'comp': 'vacc'})])
+            for i, st in enumerate(states_names):
+                results = pd.concat(
+                    [results, pd.DataFrame.from_dict({'value': np.array(ca.veccat(*self.opt['x', nd, :, st])).ravel(),
+                                                      'date': self.setup.model_days,
+                                                      'place': self.setup.ind2name[nd],
+                                                      'placeID': int(nd),
+                                                      'comp': st})])
+        results.to_csv(f'df_{self.scenario_name}.csv', index=False)
 
-            axes.flat[i].set_title(st);
-
-        axes.flat[-1].step(np.array(ca.veccat(ca.veccat(*self.opt['u', node, :til, 'v']))),  # ,opt['u',node,-1,'v'])),
-                           'k', label=r"$\nu(t)$")
-
-    def plot_all(self, opt):
-        til = self.T
-        fig, axes = plt.subplots(5, 2, figsize=(10, 10))
-        for i, st in enumerate(states_names):
-            for k in range(self.M):
-                axes.flat[i].plot(np.array(ca.veccat(*opt['x', k, :til, st])), lw=2, ls='--')
-                # if st != 'V':
-                #    axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T), 
-                #           lw = .5)
-                axes.flat[i].set_title(st)
-                axes.flat[-1].step(np.arange(len(np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v']))))),
-                                   np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v'])))
-                                   )

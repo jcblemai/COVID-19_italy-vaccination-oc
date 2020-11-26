@@ -7,8 +7,7 @@ import numpy as np
 import pandas as pd
 import networkx
 from ItalySetup import ItalySetup
-from covidOCP import ocp_utils
-from covidOCP import COVIDVaccinationOCP
+from covidOCP import COVIDVaccinationOCP, COVIDParametersOCP
 
 # Check if convariates in N or T
 
@@ -21,85 +20,29 @@ eng.cd('geography-paper-master/', nargout=0)
 model_size = 10  # nodes
 
 # Horizon for each problem
-N = 30
+ndays = 30
 n_int_steps = 1
 
-setup = ItalySetup(model_size)
+setup = ItalySetup(model_size, ndays)
 M = setup.nnodes
+N = len(setup.model_days) - 1
 
-freq = '1D'  # Unsupported to change this
-model_days = pd.date_range(setup.start_date, setup.end_date, freq=freq)
 
 eng.run('single_build.m', nargout=0)
 integ_matlab = np.array(eng.eval('x'))
 
-matlab_initial = np.zeros((M, N+1, nx))
+matlab_initial = np.zeros((M, N + 1, nx))
 for i, name in enumerate(states_names):
-    for k in range(N+1):
+    for k in range(N + 1):
         for nd in range(M):
             matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
 
-
-class OCParameters:
-    def __init__(self):
-        self.mobintime = setup.mobility_ts.resample(freq).mean()
-        p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = ocp_utils.get_parameters_from_matlab(eng,
-                                                                                                                setup,
-                                                                                                                M,
-                                                                                                                model_days,
-                                                                                                                freq)
-
-        self.params_structural = {'betaP0': p_dict['betaP0'],
-                                  'epsilonA': p_dict['epsilonA'],
-                                  'epsilonI': p_dict['epsilonI'],
-                                  'r': p_dict['r']}
-
-        p_dict.pop('betaP0')
-        p_dict.pop('r')
-        p_dict.pop('epsilonA')
-        p_dict.pop('epsilonI')
-
-        self.model_params = copy.copy(p_dict)
-
-        self.hyper_params = {
-            'scale_ell': 1e5,
-            'scale_If': 0,
-            'scale_v': 1e-10
-        }
-
-        mob_prun = 0.0006
-        self.mobmat_pr = self.prune_mobility(mob_prun)
-
-        # Numpy array from dataframes:
-        self.mobintime_arr = self.mobintime.to_numpy().T
-        self.betaratiointime_arr = self.betaratiointime.to_numpy().T
-
-    def prune_mobility(self, mob_prun):
-        mobK = self.mobintime.to_numpy().T[:, 0]
-        betaR = self.betaratiointime.to_numpy().T[:, 0]
-        C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat
-        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
-        print(f'pruning {C[C < mob_prun].size} non-diagonal mobility elements of {C.size - M}.')
-        C[C < mob_prun] = 0  # Prune elements
-        mobmat_pr = np.copy(self.mobmat)
-
-        mobmat_pr[C == 0] = 0
-        print(f'nnz before: {np.count_nonzero(self.mobmat)}, after: {np.count_nonzero(mobmat_pr)}')
-
-        return mobmat_pr
-
-    def get_pvector(self):
-        pvector = ocp_utils.params_to_vector(self.model_params)
-        for v in ocp_utils.params_to_vector(self.hyper_params):
-            pvector.append(v)
-        pvector_names = list(self.model_params.keys()) + list(self.hyper_params.keys())
-        return pvector, pvector_names
-
-
-p = OCParameters()
+p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M)
 
 ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
                                               setup=setup, parameters=p)
+
+scenario_name = 'test10000'
 control_initial = np.zeros((M, N))
 max_vacc_rate = np.zeros((M, N))
 for k in range(N):
@@ -111,112 +54,7 @@ ocp.update(parameters=p,
            max_total_vacc=10000,
            max_vacc_rate=max_vacc_rate,
            states_initial=matlab_initial,
-           control_initial=control_initial)
+           control_initial=control_initial,
+           scenario_name=scenario_name)
 
 ocp.solveOCP()
-
-til = N+1
-opt = ocp.opt
-fig, axes = plt.subplots(5, 2, figsize=(10, 10))
-for i, st in enumerate(states_names):
-    for k in range(M):
-        axes.flat[i].plot(np.array(ca.veccat(*opt['x', k, :til, st])), lw=2, ls='--')
-        # if st != 'V':
-        #    axes.flat[i].plot(np.array(integ_matlab.T[k+107*i,:til].T),
-        #           lw = .5)
-        axes.flat[i].set_title(st)
-        axes.flat[-1].step(np.arange(len(np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v']))))),
-                           np.array(ca.veccat(ca.veccat(*opt['u', k, :til, 'v'])))
-                           )
-
-
-# arg['ubx']['u', :, :, 'v']  = 0
-# If restart:
-# for i, name in enumerate(states.keys()):
-#    for k in range(N + 1):
-#        for nd in range(M):
-#            init['x', nd, k, name] = opt['x',nd, k, name]
-# for k in range(N):
-#    for nd in range(M):
-#        init['u', nd, k, 'v'] = opt['u',nd,k,'v']
-
-
-def build_graph(setup, opt, mobmat):
-    G = networkx.Graph()
-    G.position = {}
-    G.population = {}
-    G.comp = {}
-    G.epi = {}
-    setup.shp['vacc'] = np.nan
-    setup.shp['Rend'] = np.nan
-    for i, node in enumerate(setup.ind2name):
-        G.add_node(node)
-        G.position[node] = (setup.pos_node[i, 0], setup.pos_node[i, 1])
-        G.population[node] = setup.pop_node[i]
-        # G.comp[node] = (ocp.ic['S'][i], ocp.ic['I'][i],ocp.ic['R'][i])
-        try:
-            G.epi[node] = {'vacc': sum(np.array(ca.veccat(ca.veccat(*opt['u', i, :, 'v']))))[0],
-                           'Rend': float(opt['x', i, -1, 'R'])}
-            setup.shp.loc[i, 'vacc'] = sum(np.array(ca.veccat(ca.veccat(*opt['u', i, :, 'v']))))[0]
-            setup.shp.loc[i, 'Rend'] = float(opt['x', i, -1, 'R'])
-        except NameError as e:
-            # print(f'epi data failed, {e}')
-            G.epi[node] = {'vacc': np.nan,
-                           'Rend': np.nan}
-            setup.shp.loc[i, 'vacc'] = np.nan
-            setup.shp.loc[i, 'Rend'] = np.nan
-
-        setup.shp.loc[i, 'population'] = setup.pop_node[i]  # overwrite
-        for j, connection in enumerate(mobmat[i]):
-            if connection != 0:
-                G.add_edge(node, setup.ind2name[j], weight=connection)
-    return G
-
-
-# G.number_of_edges()
-
-
-def plot_graph(G):
-    fig, ax = plt.subplots(1, 1, figsize=(20, 20))
-
-    # noinspection PyUnresolvedReferences
-    networkx.draw(G,
-                  G.position,
-                  node_size=1000 / max(setup.pop_node) * np.array([G.population[v] for v in G]),
-                  # node_color=[float(G.degree(v)) for v in G],
-                  # node_color=[G.population[v] for v in G],
-                  node_color=[G.epi[v]['vacc'] / G.population[v] for v in G],
-                  width=200 * np.array([max(a['weight'], 0.001) for u, v, a in G.edges(data=True)]),
-                  edge_color=10 * np.array([a['weight'] for u, v, a in G.edges(data=True)]),
-                  edge_cmap=mpl.cm.viridis,
-                  ax=ax,
-                  with_labels=False
-                  )
-
-    #     # scale the axes equally
-    # plt.xlim(min(setup.pos_node[:,0]) - 100000, max(setup.pos_node[:,0])+ 100000)
-    # plt.ylim(min(setup.pos_node[:,1]) - 100000, max(setup.pos_node[:,1])+ 100000)
-
-    # setup.shp.plot(ax = ax, column='' cmap='OrRd', facecolor="none", edgecolor="black")
-
-    setup.shp.boundary.plot(ax=ax, edgecolor="black", linewidth=.11)
-
-    plt.draw()
-
-
-def plot_cloropleth():
-    fig, ax = plt.subplots(1, 1, figsize=(10, 10))
-    setup.shp.plot(ax=ax, column='Rend', cmap='OrRd')  # ,  edgecolor="black") #facecolor="none",
-
-
-def plotscatter():
-    import seaborn as sns
-    fig, ax = plt.subplots(1, 1, figsize=(4, 4))
-    plt.scatter(setup.shp['vacc'] / setup.shp['population'], setup.shp['Rend'] / setup.shp['population'],
-                c=setup.shp['population'])
-    ax.set_xlabel("prop. vaccinated")
-    ax.set_ylabel("prop. recovered")
-    ax.set_xlim(0)
-    ax.set_ylim(0, 0.0002)
-
-    sns.scatterplot(setup.shp['vacc'], setup.shp['population'] * 100, hue=setup.shp['population'])

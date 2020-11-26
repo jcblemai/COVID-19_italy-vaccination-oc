@@ -9,23 +9,21 @@ plt.ion()
 
 
 class ItalySetup:
-    def __init__(self, problem_size='full'):  # small (M=10),  medium or large (M=68)
+    def __init__(self, nnodes='full', ndays='full'):  # small (M=10),  medium or large (M=68)
 
         geodata = pd.read_csv('italy-data/geodata.csv')
 
-        if problem_size == 'full':
-            problem_size = len(geodata)
+        if nnodes == 'full':
+            nnodes = len(geodata)
 
-        keep = geodata['name'][:problem_size].to_list()
+        keep = geodata['name'][:nnodes].to_list()
 
         geodata = geodata[geodata['name'].isin(keep)].reset_index(drop=True)
 
         ind2name = geodata.name.to_list()
-        nnodes = len(geodata)
         mobility = np.loadtxt('italy-data/mobility.txt')
-        mobility = mobility[:problem_size, :problem_size]
+        mobility = mobility[:nnodes, :nnodes]
         pop_node = geodata.population.to_numpy()
-
 
         self.ind2name = ind2name
         self.mobility = mobility
@@ -34,13 +32,17 @@ class ItalySetup:
         self.nnodes = len(ind2name)
 
         self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
-        self.end_date = datetime.date(2020, 7, 1)
+        if ndays == 'full':
+            self.end_date = datetime.date(2020, 7, 1)
+        else:
+            self.end_date = self.start_date + datetime.timedelta(days=ndays)
 
-        mobility_ts = pd.read_csv('italy-data/mobility_ts.csv', header = None, index_col = 0, parse_dates=True)
+        self.model_days = pd.date_range(self.start_date, self.end_date, freq='1D')
+
+        mobility_ts = pd.read_csv('italy-data/mobility_ts.csv', header=None, index_col=0, parse_dates=True)
         mobility_ts.columns = np.arange(len(mobility_ts.columns))
         mobility_ts.index = mobility_ts.index.rename('date')
-        self.mobility_ts = mobility_ts.iloc[:,:problem_size]
-
+        self.mobility_ts = mobility_ts.iloc[:, :nnodes]
 
         shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp').sort_values('COD_PROV')
 
