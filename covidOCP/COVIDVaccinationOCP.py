@@ -4,11 +4,11 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
-if "Agg" not in mpl.get_backend():
-    mpl.interactive(True)
-
-plt.ion()
+# if "Agg" not in mpl.get_backend():
+#    mpl.interactive(True)
+# plt.ion()
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
@@ -42,64 +42,45 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     return rhs, rhs_ell
 
 
-def rhs_integrate(states, control, params, mob, pop_nodes):
-    # The rhs is at time zero, the time is also no used in the equation so that explain
-    rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX)
-    rhs = ca.veccat(*rhs)
-    rhs_ell = ca.veccat(*rhs_ell)  # mod
+def frhs_integrate(y, p, foi, pop_node):
+    y, ell = rhs_py(t=0, x=y, u=0, cov=0, p=p, mob=foi, pop_node=pop_node)
+    return np.array(y), ell[1]
 
-    frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX],
-                       [rhs, rhs_ell[1]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
 
+def rk4_integrate(y, pvector, mob, pop_node, dt):
     # ---- dynamic constraints --------
-    k1, k1ell = frhs(states, controls, covar, params, pop_nodeSX)
-    k2, k2ell = frhs(states + dt / 2 * k1, controls, covar, params, pop_nodeSX)
-    k3, k3ell = frhs(states + dt / 2 * k2, controls, covar, params, pop_nodeSX)
-    k4, k4ell = frhs(states + dt * k3, controls, covar, params, pop_nodeSX)
-    x_next = states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    k1, k1ell = frhs_integrate(y, foi=mob, p=pvector, pop_node=pop_node)
+    k2, k2ell = frhs_integrate(y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node)
+    k3, k3ell = frhs_integrate(y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node)
+    k4, k4ell = frhs_integrate(y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
+    x_next = y + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
     # No need for because we sum it week by week few lines below.
     ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
-    rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
-    x_ = ca.veccat(*states[...])
-    u_ = ca.veccat(*controls[...])
-    VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
-    vaccrate = controls['v'] / (VacPpl + 1e-10)
-    x_[0] -= vaccrate * states['S']
-    x_[8] += vaccrate * states['S']
-    ell = 0.
-    for k in range(n_int_steps):
-        x_, ell_ = rk4_step(x_, u_, covar, params, pop_nodeSX)
-    ell += ell_
-
-    rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
-                          ['x0', 'p'], ['xf', 'qf'])
-
-    ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
-                  [scale_ell * ell + scale_v * v * v, scale_ell * ell,
-                   scale_v * v * v])  # Very dependent on regularization factor
+    return x_next, ell_next
 
 
-def integrate(N, n_int_steps, setup, parameters, controls):
+def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
     M = setup.nnodes
 
     pvector, pvector_names = parameters.get_pvector()
 
-    dt = (N + 1) / N / n_int_steps
+    dt = (N + 1) / N / n_rk4_steps
 
-    states = cat.struct_symSX(states_names)
-    S, E, P, I, A, Q, H, R, V = np.arrange(nx)
+    S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
-    pop_nodes = setup.popnodes
+    y = np.zeros((M, N + 1, nx))
+    yell = np.zeros((M, N + 1))
 
-    y = np.zeros((M, N, nx))
+    for cp, name in enumerate(states_names):
+        for i in range(M):
+            y[i, 0, cp] = parameters.x0[i * nx + cp]
 
-    for k in range(N):
+    for k in tqdm(range(N)):
         mobK = parameters.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
         C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
-
         Sk, Ek, Pk, Rk, Ak, Ik = y[:, k, S], y[:, k, E], y[:, k, P], y[:, k, R], y[:, k, A], y[:, k, I]
         foi_sup = []
         foi_inf = []
@@ -107,17 +88,54 @@ def integrate(N, n_int_steps, setup, parameters, controls):
             foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
                     Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
             foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n])
+
         foi = []
         for m in range(M):
             foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
                         parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
 
-        print(f'{k}:', end='')
         for i in range(M):
-            y[i, k+1, :], _ = rhs_integrate(y[i, k], controls[i, k], parameters, mob_ik, setup.pop_node[i])
             mob_ik = sum(C[i, m] * foi[m] for m in range(M))
 
+            x_ = y[i, k, :]
+
+            VacPpl = Sk[i] + Ek[i] + Pk[i] + Ak[i] + Rk[i]
+            vaccrate = controls[i, k] / (VacPpl + 1e-10)
+            x_[S] -= vaccrate * Sk[i]
+            x_[V] += vaccrate * Sk[i]
+
+            ell = 0.
+            for nt in range(n_rk4_steps):
+                x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], dt)
+            ell += ell_
+
+            y[i, k + 1, :] = x_
+            yell[i, k + 1] = ell
+
+    results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
+
+    for nd in range(M):
+        results = pd.concat(
+            [results, pd.DataFrame.from_dict(
+                {'value': np.append(controls[nd, :], controls[nd, -1]).ravel(),
+                 'date': setup.model_days,
+                 'place': setup.ind2name[nd],
+                 'placeID': int(nd),
+                 'comp': 'vacc'})])
+        for i, st in enumerate(states_names):
+            results = pd.concat(
+                [results, pd.DataFrame.from_dict({'value': y[nd, :, i].ravel(),
+                                                  'date': setup.model_days,
+                                                  'place': setup.ind2name[nd],
+                                                  'placeID': int(nd),
+                                                  'comp': st})])
+    results['placeID'] = results['placeID'].astype(int)
+
+    if save_to is not None:
+        results.to_csv(f'df_{save_to}.csv', index=False)
+
+    return results
 
 
 class COVIDVaccinationOCP:
@@ -210,12 +228,13 @@ class COVIDVaccinationOCP:
         spatial = [None] * N
         Sgeq0 = [None] * N
 
-        for k in range(N):
+        for k in tqdm(range(N)):
             mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
             betaR = self.Params['cov', :, k, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
             C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
             np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
 
+            # Should this be k+1 ? to have the foi mobility.
             Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
                                      ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
                                      ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I'])
@@ -231,7 +250,6 @@ class COVIDVaccinationOCP:
                             parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                            (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
 
-            print(f'{k}:', end='')
             dyn[k] = []
             spatial[k] = []
             Sgeq0[k] = []
@@ -390,4 +408,5 @@ class COVIDVaccinationOCP:
                                                       'place': self.setup.ind2name[nd],
                                                       'placeID': int(nd),
                                                       'comp': st})])
+        results['placeID'] = results['placeID'].astype(int)
         results.to_csv(f'df_{self.scenario_name}.csv', index=False)
