@@ -47,6 +47,16 @@ class OCParameters:
         self.mobintime_arr = self.mobintime.to_numpy().T
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
+        integ_matlab = np.array(eng.eval('x'))
+
+        self.matlab_initial = np.zeros((M, len(matlab_model_days), nx))
+        for i, name in enumerate(states_names):
+            for k in range(len(matlab_model_days)):
+                for nd in range(M):
+                    self.matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
+
+
+
     def prune_mobility(self, mob_prun):
         mobK = self.mobintime.to_numpy().T[:, 0]
         betaR = self.betaratiointime.to_numpy().T[:, 0]

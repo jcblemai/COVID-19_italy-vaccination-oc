@@ -133,7 +133,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
     results['placeID'] = results['placeID'].astype(int)
 
     if save_to is not None:
-        results.to_csv(f'df_{save_to}.csv', index=False)
+        results.to_csv(f'{save_to}.csv', index=False)
 
     return results
 
@@ -299,7 +299,7 @@ class COVIDVaccinationOCP:
         # 'g' : is a function that goes lbg < g(x,p) < ubg. If you want equality
         #     constraint then ubg = lbg = the number yoiu want it to be.
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
-        # self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
+        self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
         print('DONE')
 
         # print('-> Building Jacobian function...', end='')
@@ -378,7 +378,7 @@ class COVIDVaccinationOCP:
         self.lam_g = self.g(self.sol['lam_g'])
         self.lam_x = self.Vars(self.sol['lam_x'])
         [fnum, gnum] = self.nlpFun(self.opt, self.arg['p'])
-        self.Jgnum = self.nlpJac(self.opt, self.arg['p'])
+        # self.Jgnum = self.nlpJac(self.opt, self.arg['p'])
         self.gnum = self.g(gnum)  # 2times ?
         print(f"""
         Vaccines stockpile: 
@@ -409,4 +409,4 @@ class COVIDVaccinationOCP:
                                                       'placeID': int(nd),
                                                       'comp': st})])
         results['placeID'] = results['placeID'].astype(int)
-        results.to_csv(f'df_{self.scenario_name}.csv', index=False)
+        results.to_csv(f'{self.scenario_name}.csv', index=False)
