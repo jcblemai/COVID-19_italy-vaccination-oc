@@ -55,7 +55,7 @@ class OCParameters:
         self.mobintime_arr = self.mobintime.to_numpy().T
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
-    def prune_mobility(self, mob_prun):
+    def prune_mobility(self, mob_prun=0.0006):
         mobK = self.mobintime.to_numpy().T[:, 0]
         betaR = self.betaratiointime.to_numpy().T[:, 0]
         C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat

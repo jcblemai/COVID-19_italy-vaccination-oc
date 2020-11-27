@@ -71,6 +71,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
 
     y = np.zeros((M, N + 1, nx))
     yell = np.zeros((M, N + 1))
+    mob = np.zeros((M, N + 1))
 
     for cp, name in enumerate(states_names):
         for i in range(M):
@@ -97,6 +98,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
 
         for i in range(M):
             mob_ik = sum(C[i, m] * foi[m] for m in range(M))
+            mob[i, k] = mob_ik
 
             x_ = y[i, k, :]
 
@@ -135,7 +137,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
     if save_to is not None:
         results.to_csv(f'{save_to}.csv', index=False)
 
-    return results
+    return results, y, yell, mob
 
 
 class COVIDVaccinationOCP:
