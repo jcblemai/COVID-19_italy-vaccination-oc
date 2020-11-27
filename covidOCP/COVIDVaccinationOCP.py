@@ -20,7 +20,6 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
                                                                                                p[8], p[9], p[10], p[11]
-
     # v = u[0]
     foi = mob
     rhs = [None] * nx
@@ -43,8 +42,82 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     return rhs, rhs_ell
 
 
-def mobility_graph(mobility, ind2name, pos_node, pop_node, opt, N):
-    pass
+def rhs_integrate(states, control, params, mob, pop_nodes):
+    # The rhs is at time zero, the time is also no used in the equation so that explain
+    rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX)
+    rhs = ca.veccat(*rhs)
+    rhs_ell = ca.veccat(*rhs_ell)  # mod
+
+    frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX],
+                       [rhs, rhs_ell[1]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
+
+    # ---- dynamic constraints --------
+    k1, k1ell = frhs(states, controls, covar, params, pop_nodeSX)
+    k2, k2ell = frhs(states + dt / 2 * k1, controls, covar, params, pop_nodeSX)
+    k3, k3ell = frhs(states + dt / 2 * k2, controls, covar, params, pop_nodeSX)
+    k4, k4ell = frhs(states + dt * k3, controls, covar, params, pop_nodeSX)
+    x_next = states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    # No need for because we sum it week by week few lines below.
+    ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
+    rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+
+    x_ = ca.veccat(*states[...])
+    u_ = ca.veccat(*controls[...])
+    VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
+    vaccrate = controls['v'] / (VacPpl + 1e-10)
+    x_[0] -= vaccrate * states['S']
+    x_[8] += vaccrate * states['S']
+    ell = 0.
+    for k in range(n_int_steps):
+        x_, ell_ = rk4_step(x_, u_, covar, params, pop_nodeSX)
+    ell += ell_
+
+    rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
+                          ['x0', 'p'], ['xf', 'qf'])
+
+    ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX],
+                  [scale_ell * ell + scale_v * v * v, scale_ell * ell,
+                   scale_v * v * v])  # Very dependent on regularization factor
+
+
+def integrate(N, n_int_steps, setup, parameters, controls):
+    M = setup.nnodes
+
+    pvector, pvector_names = parameters.get_pvector()
+
+    dt = (N + 1) / N / n_int_steps
+
+    states = cat.struct_symSX(states_names)
+    S, E, P, I, A, Q, H, R, V = np.arrange(nx)
+
+    pop_nodes = setup.popnodes
+
+    y = np.zeros((M, N, nx))
+
+    for k in range(N):
+        mobK = parameters.mobintime_arr[:, k]
+        betaR = parameters.betaratiointime_arr[:, k]
+        C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
+        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+
+        Sk, Ek, Pk, Rk, Ak, Ik = y[:, k, S], y[:, k, E], y[:, k, P], y[:, k, R], y[:, k, A], y[:, k, I]
+        foi_sup = []
+        foi_inf = []
+        for n in range(M):
+            foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
+                    Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
+            foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n])
+        foi = []
+        for m in range(M):
+            foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
+                        parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
+                       (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
+
+        print(f'{k}:', end='')
+        for i in range(M):
+            y[i, k+1, :], _ = rhs_integrate(y[i, k], controls[i, k], parameters, mob_ik, setup.pop_node[i])
+            mob_ik = sum(C[i, m] * foi[m] for m in range(M))
+
 
 
 class COVIDVaccinationOCP:
@@ -57,7 +130,7 @@ class COVIDVaccinationOCP:
 
         _, pvector_names = parameters.get_pvector()
 
-        dt = (N+1) / N / n_int_steps
+        dt = (N + 1) / N / n_int_steps
 
         states = cat.struct_symSX(states_names)
         [S, E, P, I, A, Q, H, R, V] = states[...]
@@ -185,9 +258,9 @@ class COVIDVaccinationOCP:
                 VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S', 'E', 'P', 'A', 'R'])
                 Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines += self.Vars['u', i, k, 'v'] * (N+1) / N
+                vaccines += self.Vars['u', i, k, 'v'] * (N + 1) / N
 
-        f /= (N+1)  # Average over interval for cost ^ but not terminal cost
+        f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
         print('-> Writing constraints, ...', end='')
         self.g = cat.struct_MX([
@@ -231,7 +304,7 @@ class COVIDVaccinationOCP:
         self.arg = {}
         self.scenario_name = 'no_update'
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, scenario_name = 'test'):
+    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, scenario_name='test'):
         # This initialize
         lbg = self.g(0)
         ubg = self.g(0)
@@ -281,7 +354,7 @@ class COVIDVaccinationOCP:
 
         self.scenario_name = scenario_name
 
-    def solveOCP(self, save = True):
+    def solveOCP(self, save=True):
         self.sol = self.solver(**self.arg)
         self.opt = self.Vars(self.sol['x'])
         self.lam_g = self.g(self.sol['lam_g'])
@@ -304,7 +377,8 @@ class COVIDVaccinationOCP:
         for nd in range(self.M):
             results = pd.concat(
                 [results, pd.DataFrame.from_dict(
-                    {'value': np.array(ca.veccat(ca.veccat(*self.opt['u', nd, :, 'v']), self.opt['u', nd, -1, 'v'])).ravel(),
+                    {'value': np.array(
+                        ca.veccat(ca.veccat(*self.opt['u', nd, :, 'v']), self.opt['u', nd, -1, 'v'])).ravel(),
                      'date': self.setup.model_days,
                      'place': self.setup.ind2name[nd],
                      'placeID': int(nd),
@@ -317,4 +391,3 @@ class COVIDVaccinationOCP:
                                                       'placeID': int(nd),
                                                       'comp': st})])
         results.to_csv(f'df_{self.scenario_name}.csv', index=False)
-
