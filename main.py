@@ -66,6 +66,7 @@ results, y, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                       n_rk4_steps=10)
 plt.figure(figsize = (10,10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
+plt.show()
 
 sys.exit(0)
 
