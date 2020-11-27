@@ -299,12 +299,12 @@ class COVIDVaccinationOCP:
         # 'g' : is a function that goes lbg < g(x,p) < ubg. If you want equality
         #     constraint then ubg = lbg = the number yoiu want it to be.
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
-        self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
+        # self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
         print('DONE')
 
-        print('-> Building Jacobian function...', end='')
-        self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
-        print('DONE')
+        # print('-> Building Jacobian function...', end='')
+        # self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
+        # print('DONE')
 
         print('-> Building Solver...', end='')
         options = {'ipopt': {}}
@@ -383,7 +383,7 @@ class COVIDVaccinationOCP:
         print(f"""
         Vaccines stockpile: 
             {float(self.arg['ubg']['vaccines']):010f} total.
-            {float(self.g(gnum)['vaccines']):010f} spent.
+            {float(self.g(self.gnum)['vaccines']):010f} spent.
             {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):010f} left.""")
 
         if save:
