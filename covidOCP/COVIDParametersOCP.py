@@ -12,14 +12,22 @@ class OCParameters:
     def __init__(self, eng, setup, M, freq='1D'):
         self.M = M
         self.mobintime = setup.mobility_ts.resample(freq).mean()
-
         matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
         matlab_end_date = datetime.date(2020, 7, 1)
-        matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
+        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
+
+        integ_matlab = np.array(eng.eval('x'))
+
+        self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
+        for i, name in enumerate(states_names):
+            for k in range(len(self.matlab_model_days)):
+                for nd in range(M):
+                    self.matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
+
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
                                                                                                       M,
-                                                                                                      matlab_model_days,
+                                                                                                      self.matlab_model_days,
                                                                                                       freq)
 
         self.params_structural = {'betaP0': p_dict['betaP0'],
@@ -46,16 +54,6 @@ class OCParameters:
         # Numpy array from dataframes:
         self.mobintime_arr = self.mobintime.to_numpy().T
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
-
-        integ_matlab = np.array(eng.eval('x'))
-
-        self.matlab_initial = np.zeros((M, len(matlab_model_days), nx))
-        for i, name in enumerate(states_names):
-            for k in range(len(matlab_model_days)):
-                for nd in range(M):
-                    self.matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
-
-
 
     def prune_mobility(self, mob_prun):
         mobK = self.mobintime.to_numpy().T[:, 0]

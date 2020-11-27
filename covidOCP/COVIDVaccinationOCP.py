@@ -302,9 +302,9 @@ class COVIDVaccinationOCP:
         self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
         print('DONE')
 
-        # print('-> Building Jacobian function...', end='')
-        # self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
-        # print('DONE')
+        print('-> Building Jacobian function...', end='')
+        self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
+        print('DONE')
 
         print('-> Building Solver...', end='')
         options = {'ipopt': {}}

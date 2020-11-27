@@ -15,7 +15,7 @@ os.makedirs(outdir, exist_ok=True)
 @click.command()
 @click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test', show_default=True,
               help="file prefix to add to identify the current set of runs.")
@@ -49,7 +49,7 @@ def run_scenarios(nnodes, ndays, use_matlab, file_prefix):
     max_vacc_rate = np.zeros((M, N))
     for k in range(N):
         for nd in range(M):
-            max_vacc_rate[nd, k] = 0
+            max_vacc_rate[nd, k] = 200
             control_initial[nd, k] = 0
 
     initial = np.zeros((M, N + 1, nx))
@@ -70,7 +70,7 @@ def run_scenarios(nnodes, ndays, use_matlab, file_prefix):
                                             n_rk4_steps=10)
 
     ocp.update(parameters=p,
-               max_total_vacc=np.inf,
+               max_total_vacc=1000,
                max_vacc_rate=max_vacc_rate,
                states_initial=p.matlab_initial,
                control_initial=control_initial,
@@ -78,6 +78,8 @@ def run_scenarios(nnodes, ndays, use_matlab, file_prefix):
 
     ocp.solveOCP()
 
+    return ocp, p
+
 
 if __name__ == '__main__':
-    run_scenarios()
+    ocp, p = run_scenarios()
