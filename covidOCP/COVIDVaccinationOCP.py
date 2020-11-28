@@ -77,12 +77,15 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
         for i in range(M):
             y[i, 0, cp] = parameters.x0[i * nx + cp]
 
-    for k in tqdm(range(N)):
+    for k in tqdm(range(2)):
         mobK = parameters.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
         C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        np.fill_diagonal(C, np.zeros_like(C.diagonal()))
+        plt.spy(C)
         Sk, Ek, Pk, Rk, Ak, Ik = y[:, k, S], y[:, k, E], y[:, k, P], y[:, k, R], y[:, k, A], y[:, k, I]
+
         foi_sup = []
         foi_inf = []
         for n in range(M):
@@ -95,6 +98,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
             foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
                         parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
+            print(m, foi_inf[m], sum(C[l, m] * foi_inf[l] for l in range(M)))
 
         for i in range(M):
             mob_ik = sum(C[i, m] * foi[m] for m in range(M))

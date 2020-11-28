@@ -57,17 +57,16 @@ class OCParameters:
 
     def prune_mobility(self, mob_prun=0.0006):
         mobK = self.mobintime.to_numpy().T[:, 0]
-        betaR = self.betaratiointime.to_numpy().T[:, 0]
         C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
         # print(f'pruning {C[C < mob_prun].size} non-diagonal mobility elements of {C.size - self.M}.')
         C[C < mob_prun] = 0  # Prune elements
-        mobmat_pr = np.copy(self.mobmat)
+        self.mobmat_pr = np.copy(self.mobmat)
 
-        mobmat_pr[C == 0] = 0
-        print(f'nnz before: {np.count_nonzero(self.mobmat)}, after: {np.count_nonzero(mobmat_pr)}')
+        self.mobmat_pr[C == 0] = 0
+        print(f'nnz before: {np.count_nonzero(self.mobmat)}, after: {np.count_nonzero(self.mobmat_pr)}')
 
-        return mobmat_pr
+        return self.mobmat_pr
 
     def get_pvector(self):
         pvector = params_to_vector(self.model_params)

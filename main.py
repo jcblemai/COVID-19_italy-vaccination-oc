@@ -1,6 +1,7 @@
 import numpy as np
 from ItalySetup import ItalySetup
-from covidOCP import COVIDVaccinationOCP, COVIDParametersOCP
+from covidOCP import COVIDVaccinationOCP as COVIDVaccinationOCP
+from covidOCP import COVIDParametersOCP
 import pickle
 import matplotlib.pyplot as plt
 import click
@@ -12,10 +13,10 @@ outdir = 'model_output/'
 
 os.makedirs(outdir, exist_ok=True)
 
-# All arrays here are (nnodes, ndays, (nx))
+# All arrays here are (nnodes, ndays, (nx))7
 
 nnodes = 107
-ndays = 'full'
+ndays = 30  # 'full'
 use_matlab = False
 file_prefix = 'test'
 
@@ -48,7 +49,7 @@ control_initial = np.zeros((M, N))
 max_vacc_rate = np.zeros((M, N))
 for k in range(N):
     for nd in range(M):
-        max_vacc_rate[nd, k] = 200
+        max_vacc_rate[nd, k] = 0
         control_initial[nd, k] = 0
 
 initial = np.zeros((M, N + 1, nx))
@@ -64,24 +65,22 @@ results, y, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                       controls=control_initial,
                                                       save_to=f'{outdir}{file_prefix}-integ{nnodes}',
                                                       n_rk4_steps=10)
-plt.figure(figsize = (10,10))
+plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-sys.exit(0)
+quit()
 
 p.prune_mobility()
 ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
                                               setup=setup, parameters=p)
 
-p.prune_mobility(-1)
-
 ocp.update(parameters=p,
-           max_total_vacc=1000,
+           max_total_vacc=10,
            max_vacc_rate=max_vacc_rate,
            states_initial=p.matlab_initial,
            control_initial=control_initial,
-           scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-10000')
+           scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-trick')
 
 ocp.solveOCP()
 

@@ -21,7 +21,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
                                                                                                p[4], p[5], p[6], p[7], \
                                                                                                p[8], p[9], p[10], p[11]
     # v = u[0]
-    foi = (1-t)*mob[0] + t*mob[1]
+    foi = (1 - t) * mob[0] + t * mob[1]
     rhs = [None] * nx
     vaccrate = 0
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
@@ -49,10 +49,10 @@ def frhs_integrate(t, y, p, foi, pop_node):
 
 def rk4_integrate(y, pvector, mob, pop_node, dt):
     # ---- dynamic constraints --------
-    k1, k1ell = frhs_integrate(0,          y, foi=mob, p=pvector, pop_node=pop_node)
+    k1, k1ell = frhs_integrate(0, y, foi=mob, p=pvector, pop_node=pop_node)
     k2, k2ell = frhs_integrate(0 + 1. / 2, y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node)
     k3, k3ell = frhs_integrate(0 + 1. / 2, y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node)
-    k4, k4ell = frhs_integrate(0 + 1.,     y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
+    k4, k4ell = frhs_integrate(0 + 1., y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
     x_next = y + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
     # No need for because we sum it week by week few lines below.
     ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
@@ -157,7 +157,7 @@ class COVIDVaccinationOCP:
 
         controls = cat.struct_symSX(['v', 'mob0', 'mob1'])
         [v, mob0, mob1] = controls[...]
-        mob = veccat(mob0,mob1)
+        mob = ca.veccat(mob0, mob1)
 
         covar = cat.struct_symSX(['mobility_t', 'betaratio_t'])
         [mobility_t, betaratio_t] = covar[...]
@@ -175,25 +175,25 @@ class COVIDVaccinationOCP:
         rhs = ca.veccat(*rhs)
         rhs_ell = ca.veccat(*rhs_ell)  # mod
 
-        frhs = ca.Function('frhs', [time,states, controls, covar, params, pop_nodeSX],
+        frhs = ca.Function('frhs', [time, states, controls, covar, params, pop_nodeSX],
                            [rhs, rhs_ell[1]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
 
         # ---- dynamic constraints --------
         if integ == 'rk4':
-            k1, k1ell = frhs(time,                states,               controls, covar, params, pop_nodeSX)
-            k2, k2ell = frhs(time+0.5/n_int_steps,states + dt / 2 * k1, controls, covar, params, pop_nodeSX)
-            k3, k3ell = frhs(time+0.5/n_int_steps,states + dt / 2 * k2, controls, covar, params, pop_nodeSX)
-            k4, k4ell = frhs(time+1./n_int_steps, states + dt * k3,     controls, covar, params, pop_nodeSX)
+            k1, k1ell = frhs(time, states, controls, covar, params, pop_nodeSX)
+            k2, k2ell = frhs(time + 0.5 / n_int_steps, states + dt / 2 * k1, controls, covar, params, pop_nodeSX)
+            k3, k3ell = frhs(time + 0.5 / n_int_steps, states + dt / 2 * k2, controls, covar, params, pop_nodeSX)
+            k4, k4ell = frhs(time + 1. / n_int_steps, states + dt * k3, controls, covar, params, pop_nodeSX)
             x_next = states + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
             # No need for because we sum it week by week few lines below.
             ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
-            rk4_step = ca.Function('rk4_step', [time,states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+            rk4_step = ca.Function('rk4_step', [time, states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
         elif integ == 'euler':
-            a, b = frhs(time,states, controls, covar, params, pop_nodeSX)
+            a, b = frhs(time, states, controls, covar, params, pop_nodeSX)
             x_next = states + dt * a
             ell_next = dt * b
-            rk4_step = ca.Function('rk4_step', [time,states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
+            rk4_step = ca.Function('rk4_step', [time, states, controls, covar, params, pop_nodeSX], [x_next, ell_next])
 
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
@@ -204,9 +204,9 @@ class COVIDVaccinationOCP:
         ell = 0.
         t = 0.
         for k in range(n_int_steps):
-            x_, ell_ = rk4_step(t,x_, u_, covar, params, pop_nodeSX)
+            x_, ell_ = rk4_step(t, x_, u_, covar, params, pop_nodeSX)
             ell += ell_
-            t = t + 1./n_int_steps
+            t = t + 1. / n_int_steps
 
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
@@ -236,23 +236,52 @@ class COVIDVaccinationOCP:
         Sgeq0 = [None] * N
 
         for k in tqdm(range(N)):
-            mobK = self.Params['cov', :, k, 'mobility_t']     # mobintime.to_numpy().T[:,k]
-            betaR = self.Params['cov', :, k, 'betaratio_t']   # betaratiointime.to_numpy().T[:,k]
-            C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
-            np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
-            betaR1 = self.Params['cov', :, k+1, 'betaratio_t']   # betaratiointime.to_numpy().T[:,k]
-            mobK1  = self.Params['cov', :, k+1, 'mobility_t']  # mobintime.to_numpy().T[:,k]
-            
-            C1 = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK1 * parameters.mobmat_pr
-            np.fill_diagonal(C1, 1 - C1.sum(axis=1) + C1.diagonal())
 
-            # Should this be k+1 ? to have the foi mobility.
-            Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
-                                     ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
-                                     ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I'])
-            Sk1, Ek1, Pk1, Rk1, Ak1, Ik1 = ca.veccat(*self.Vars['x', :, k+1, 'S']), ca.veccat(*self.Vars['x', :, k+1, 'E']), \
-                                           ca.veccat(*self.Vars['x', :, k+1, 'P']), ca.veccat(*self.Vars['x', :, k+1, 'R']), \
-                                           ca.veccat(*self.Vars['x', :, k+1, 'A']), ca.veccat(*self.Vars['x', :, k+1, 'I'])
+            if k < N-1:
+                mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
+                betaR = self.Params['cov', :, k, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
+                C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
+                np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+                betaR1 = self.Params['cov', :, k + 1, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
+                mobK1 = self.Params['cov', :, k + 1, 'mobility_t']  # mobintime.to_numpy().T[:,k]
+
+                C1 = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK1 * parameters.mobmat_pr
+                np.fill_diagonal(C1, 1 - C1.sum(axis=1) + C1.diagonal())
+
+                # Should this be k+1 ? to have the foi mobility.
+                Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
+                                         ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
+                                         ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I'])
+                Sk1, Ek1, Pk1, Rk1, Ak1, Ik1 = ca.veccat(*self.Vars['x', :, k + 1, 'S']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'E']), \
+                                               ca.veccat(*self.Vars['x', :, k + 1, 'P']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'R']), \
+                                               ca.veccat(*self.Vars['x', :, k + 1, 'A']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'I'])
+
+            else:
+                k = k - 1
+                mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
+                betaR = self.Params['cov', :, k, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
+                C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
+                np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+                betaR1 = self.Params['cov', :, k + 1, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
+                mobK1 = self.Params['cov', :, k + 1, 'mobility_t']  # mobintime.to_numpy().T[:,k]
+
+                C1 = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK1 * parameters.mobmat_pr
+                np.fill_diagonal(C1, 1 - C1.sum(axis=1) + C1.diagonal())
+
+                # Should this be k+1 ? to have the foi mobility.
+                Sk, Ek, Pk, Rk, Ak, Ik = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
+                                         ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
+                                         ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I'])
+                Sk1, Ek1, Pk1, Rk1, Ak1, Ik1 = ca.veccat(*self.Vars['x', :, k + 1, 'S']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'E']), \
+                                               ca.veccat(*self.Vars['x', :, k + 1, 'P']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'R']), \
+                                               ca.veccat(*self.Vars['x', :, k + 1, 'A']), ca.veccat(
+                    *self.Vars['x', :, k + 1, 'I'])
+                k += 1
             foi_sup = []
             foi_inf = []
             for n in range(M):
@@ -273,8 +302,8 @@ class COVIDVaccinationOCP:
             foi1 = []
             for m in range(M):
                 foi1.append((sum(C1[n, m] * foi_sup1[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
-                            parameters.params_structural['betaP0'] * betaR1[m] * Ik1[m]) /
-                           (sum(C1[l, m] * foi_inf1[l] for l in range(M)) + Ik1[m]))
+                             parameters.params_structural['betaP0'] * betaR1[m] * Ik1[m]) /
+                            (sum(C1[l, m] * foi_inf1[l] for l in range(M)) + Ik1[m]))
 
             dyn[k] = []
             spatial[k] = []
