@@ -16,8 +16,8 @@ os.makedirs(outdir, exist_ok=True)
 # All arrays here are (nnodes, ndays, (nx))7
 
 nnodes = 107
-ndays = 30  # 'full'
-use_matlab = False
+ndays = 'full'
+use_matlab = True
 file_prefix = 'test'
 
 if use_matlab:
@@ -64,7 +64,7 @@ results, y, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                       parameters=p,
                                                       controls=control_initial,
                                                       save_to=f'{outdir}{file_prefix}-integ{nnodes}',
-                                                      n_rk4_steps=10)
+                                                      n_rk4_steps=30)
 plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()

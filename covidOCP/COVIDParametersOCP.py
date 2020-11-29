@@ -5,7 +5,7 @@ import datetime
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-S, E, P, I, A, Q, H, R, V = np.arange(nx)
+
 
 
 class OCParameters:
@@ -22,7 +22,7 @@ class OCParameters:
         for i, name in enumerate(states_names):
             for k in range(len(self.matlab_model_days)):
                 for nd in range(M):
-                    self.matlab_initial[nd, k, i] = integ_matlab.T[nd + 107 * i, k].T
+                    self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
 
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
@@ -97,6 +97,7 @@ def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
     p['gammaV'] = 1 / (9 * 30)
     x0_matlab = np.array(eng.eval('V.x0')).flatten()
     x0 = np.zeros(9 * s.nnodes)
+    S, E, P, I, A, Q, H, R, V = np.arange(nx)
     for i in range(s.nnodes):
         x0[i * nx:(i + 1) * nx] = [x0_matlab[107 * S + i],
                                    x0_matlab[107 * E + i],

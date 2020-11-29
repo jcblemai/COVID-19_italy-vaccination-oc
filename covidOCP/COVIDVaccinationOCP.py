@@ -14,14 +14,20 @@ nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 
-def rhs_py(t, x, u, cov, p, mob, pop_node):
+def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
 
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
                                                                                                p[8], p[9], p[10], p[11]
+
+    Cii, betaP0, betaR, epsilonA, epsilonI = p_foi[0], p_foi[1], p_foi[2], p_foi[3], p_foi[4]
+
+    foi = Cii * ((Cii * (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) /
+                 (Cii * (S + E + P + R + A) + I))
+
     # v = u[0]
-    foi = mob
+    foi += mob
     rhs = [None] * nx
     vaccrate = 0
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
@@ -42,17 +48,17 @@ def rhs_py(t, x, u, cov, p, mob, pop_node):
     return rhs, rhs_ell
 
 
-def frhs_integrate(y, p, foi, pop_node):
-    y, ell = rhs_py(t=0, x=y, u=0, cov=0, p=p, mob=foi, pop_node=pop_node)
+def frhs_integrate(y, p, foi, pop_node, p_foi=[0]*5):
+    y, ell = rhs_py(t=0, x=y, u=0, cov=0, p=p, mob=foi, pop_node=pop_node, p_foi=p_foi)
     return np.array(y), ell[1]
 
 
-def rk4_integrate(y, pvector, mob, pop_node, dt):
+def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
     # ---- dynamic constraints --------
-    k1, k1ell = frhs_integrate(y, foi=mob, p=pvector, pop_node=pop_node)
-    k2, k2ell = frhs_integrate(y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node)
-    k3, k3ell = frhs_integrate(y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node)
-    k4, k4ell = frhs_integrate(y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
+    k1, k1ell = frhs_integrate(y, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
+    k2, k2ell = frhs_integrate(y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
+    k3, k3ell = frhs_integrate(y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
+    k4, k4ell = frhs_integrate(y + dt * k3, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
     x_next = y + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
     # No need for because we sum it week by week few lines below.
     ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
@@ -77,13 +83,14 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
         for i in range(M):
             y[i, 0, cp] = parameters.x0[i * nx + cp]
 
-    for k in tqdm(range(2)):
+    for k in tqdm(range(N)):
         mobK = parameters.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
         C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        C_foi = np.copy(C.diagonal())
         np.fill_diagonal(C, np.zeros_like(C.diagonal()))
-        plt.spy(C)
+        # plt.spy(C)
         Sk, Ek, Pk, Rk, Ak, Ik = y[:, k, S], y[:, k, E], y[:, k, P], y[:, k, R], y[:, k, A], y[:, k, I]
 
         foi_sup = []
@@ -98,10 +105,10 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
             foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
                         parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
-            print(m, foi_inf[m], sum(C[l, m] * foi_inf[l] for l in range(M)))
 
         for i in range(M):
             mob_ik = sum(C[i, m] * foi[m] for m in range(M))
+
             mob[i, k] = mob_ik
 
             x_ = y[i, k, :]
@@ -111,9 +118,12 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
             x_[S] -= vaccrate * Sk[i]
             x_[V] += vaccrate * Sk[i]
 
+            p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
+                     parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
+
             ell = 0.
             for nt in range(n_rk4_steps):
-                x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], dt)
+                x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
             ell += ell_
 
             y[i, k + 1, :] = x_
