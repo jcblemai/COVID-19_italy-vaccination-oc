@@ -47,12 +47,12 @@ def frhs_integrate(t, y, p, foi, pop_node):
     return np.array(y), ell[1]
 
 
-def rk4_integrate(t,y, pvector, mob, pop_node, dt, dt1):
+def rk4_integrate(t, y, pvector, mob, pop_node, dt, dt1):
     # ---- dynamic constraints --------
-    k1, k1ell = frhs_integrate(t,             y, foi=mob, p=pvector, pop_node=pop_node)
-    k2, k2ell = frhs_integrate(t + 1. / 2*dt1, y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node)
-    k3, k3ell = frhs_integrate(t + 1. / 2*dt1, y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node)
-    k4, k4ell = frhs_integrate(t + 1.*dt1,     y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
+    k1, k1ell = frhs_integrate(t, y, foi=mob, p=pvector, pop_node=pop_node)
+    k2, k2ell = frhs_integrate(t + 1. / 2 * dt1, y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node)
+    k3, k3ell = frhs_integrate(t + 1. / 2 * dt1, y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node)
+    k4, k4ell = frhs_integrate(t + 1. * dt1, y + dt * k3, foi=mob, p=pvector, pop_node=pop_node)
     x_next = y + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
     # No need for because we sum it week by week few lines below.
     ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
@@ -97,11 +97,13 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
                         parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m]))
 
-        mobK1 = parameters.mobintime_arr[:, k+1]
-        betaR1 = parameters.betaratiointime_arr[:, k+1]
+        mobK1 = parameters.mobintime_arr[:, k + 1]
+        betaR1 = parameters.betaratiointime_arr[:, k + 1]
         C1 = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK1 * parameters.mobmat_pr
         np.fill_diagonal(C1, 1 - C1.sum(axis=1) + C1.diagonal())
-        Sk1, Ek1, Pk1, Rk1, Ak1, Ik1 = y[:, k+1, S], y[:, k+1, E], y[:, k+1, P], y[:, k+1, R], y[:, k+1, A], y[:, k+1, I]
+        Sk1, Ek1, Pk1, Rk1, Ak1, Ik1 = y[:, k + 1, S], y[:, k + 1, E], y[:, k + 1, P], y[:, k + 1, R], y[:, k + 1,
+                                                                                                       A], y[:, k + 1,
+                                                                                                           I]
         foi_sup1 = []
         foi_inf1 = []
         for n in range(M):
@@ -114,7 +116,6 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
         #     foi1.append((sum(C1[n, m] * foi_sup1[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
         #                 parameters.params_structural['betaP0'] * betaR1[m] * Ik1[m]) /
         #                (sum(C1[l, m] * foi_inf1[l] for l in range(M)) + Ik1[m]))
-        
 
         for i in range(M):
             mob_ik = sum(C[i, m] * foi[m] for m in range(M))
@@ -134,8 +135,8 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
             ell = 0.
             time = 0.
             for nt in range(n_rk4_steps):
-                x_, ell_ = rk4_integrate(time,x_, pvector, [mob_ik,mob_ik1], setup.pop_node[i], dt, 1./n_rk4_steps)
-                time = time + 1./n_rk4_steps
+                x_, ell_ = rk4_integrate(time, x_, pvector, [mob_ik, mob_ik1], setup.pop_node[i], dt, 1. / n_rk4_steps)
+                time = time + 1. / n_rk4_steps
             ell += ell_
 
             y[i, k + 1, :] = x_
@@ -263,7 +264,7 @@ class COVIDVaccinationOCP:
 
         for k in tqdm(range(N)):
 
-            if k < N-1:
+            if k < N - 1:
                 mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
                 betaR = self.Params['cov', :, k, 'betaratio_t']  # betaratiointime.to_numpy().T[:,k]
                 C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr

@@ -17,8 +17,10 @@ os.makedirs(outdir, exist_ok=True)
 
 nnodes = 107
 ndays = 'full'
-use_matlab = True
-file_prefix = 'test'
+use_matlab = False
+file_prefix = '20201129'
+
+ocp = True
 
 if use_matlab:
     save_param = True
@@ -58,31 +60,66 @@ for i, name in enumerate(states_names):
         for nd in range(M):
             initial[nd, k, i] = 0
 
-p.prune_mobility(-1)
-results, y, yell, mob = COVIDVaccinationOCP.integrate(N,
-                                                      setup=setup,
-                                                      parameters=p,
-                                                      controls=control_initial,
-                                                      save_to=f'{outdir}{file_prefix}-integ{nnodes}',
-                                                      n_rk4_steps=30)
+#p.prune_mobility(.0004)
+#p.prune_mobility(-1)
+results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+                                                                  setup=setup,
+                                                                  parameters=p,
+                                                                  controls=control_initial,
+                                                                  save_to=f'{outdir}{file_prefix}-int{nnodes}-r0-m0',
+                                                                  n_rk4_steps=10)
+
+if ocp:
+    ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
+                                                  setup=setup, parameters=p)
+
+    ocp.update(parameters=p,
+               max_total_vacc=1e6,
+               max_vacc_rate=max_vacc_rate,
+               states_initial=p.matlab_initial,#state_initial,
+               control_initial=control_initial,
+               scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r0-m0')
+
+    ocp.solveOCP()
 plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-quit()
+scn_maxvacc = [30e6, 1e6, 15e6, 5e5, 25e6, 20e6, 10e6]
 
-p.prune_mobility()
-ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
-                                              setup=setup, parameters=p)
+scn_maxvacc = [m*(nnodes/107) for m in scn_maxvacc]
 
-ocp.update(parameters=p,
-           max_total_vacc=10,
-           max_vacc_rate=max_vacc_rate,
-           states_initial=p.matlab_initial,
-           control_initial=control_initial,
-           scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-trick')
+# bug pour 30e6 and for mobpr, in integ
 
-ocp.solveOCP()
+mvr = 4000
+
+for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
+
+    control_initial = np.zeros((M, N))
+    max_vacc_rate = np.zeros((M, N))
+    allocated = 0
+    for k in range(N):
+        for nd in range(M):
+            max_vacc_rate[nd, k] = mvr
+            if allocated + mvr < scn_maxvacc:
+                control_initial[nd, k] = mvr
+                allocated += mvr
+
+    results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+                                                                      setup=setup,
+                                                                      parameters=p,
+                                                                      controls=control_initial,
+                                                                      save_to=f'{outdir}{file_prefix}-int{nnodes}-r{mvr}-m{int(scn_maxvacc)}',
+                                                                      n_rk4_steps=10)
+    if ocp:
+        ocp.update(parameters=p,
+                   max_total_vacc=10,
+                   max_vacc_rate=max_vacc_rate,
+                   states_initial=state_initial,
+                   control_initial=control_initial,
+                   scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r{mvr}-m{scn_maxvacc}')
+
+        ocp.solveOCP()
 
 # @click.command()
 # @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")

@@ -22,7 +22,8 @@ class OCParameters:
         for i, name in enumerate(states_names):
             for k in range(len(self.matlab_model_days)):
                 for nd in range(M):
-                    self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
+                    if name != 'V':  # Other wise we go into the cumulative of the matlab integration and place it as V
+                        self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
 
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
