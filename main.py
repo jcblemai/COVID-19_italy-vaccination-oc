@@ -16,9 +16,9 @@ os.makedirs(outdir, exist_ok=True)
 # All arrays here are (nnodes, ndays, (nx))7
 
 nnodes = 107
-ndays = 30  # 'full'
+ndays = 120  # 'full'
 use_matlab = False
-file_prefix = '20201129'
+file_prefix = 'scnMaxVacc4000'
 
 ocp = True
 
@@ -71,7 +71,8 @@ results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
 
 if ocp:
     ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
-                                                  setup=setup, parameters=p)
+                                                  setup=setup, parameters=p,
+                                                  show_steps=False)
 
     ocp.update(parameters=p,
                max_total_vacc=1e6,
@@ -86,12 +87,10 @@ plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-scn_maxvacc = [15e6, 25e6, 20e6, 10e6, 30e6]
+scn_maxvacc = [1e6, 5e6, 15e6, 25e6, 35e6, 45e6]
 
 # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
 scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
-
-# bug pour 30e6 and for mobpr, in integ
 
 mvr = 4000
 
