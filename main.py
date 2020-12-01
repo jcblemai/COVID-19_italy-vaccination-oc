@@ -15,7 +15,7 @@ os.makedirs(outdir, exist_ok=True)
 
 # All arrays here are (nnodes, ndays, (nx))7
 
-nnodes = 107
+nnodes = 10
 ndays = 'full'
 use_matlab = False
 file_prefix = '20201129'
@@ -60,14 +60,14 @@ for i, name in enumerate(states_names):
         for nd in range(M):
             initial[nd, k, i] = 0
 
-#p.prune_mobility(.0004)
 #p.prune_mobility(-1)
 results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                   setup=setup,
                                                                   parameters=p,
                                                                   controls=control_initial,
                                                                   save_to=f'{outdir}{file_prefix}-int{nnodes}-r0-m0',
-                                                                  n_rk4_steps=10)
+                                                                  method='rk4',
+                                                                  n_rk4_steps=n_int_steps)
 
 if ocp:
     ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,

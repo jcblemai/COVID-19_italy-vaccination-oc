@@ -1,6 +1,7 @@
 Old version contains:
 - CVO_implicit: implicit force of infection: 1st order approximation of the force of infection to mitigate
 the fact that the relationship between nodes is not taken into account
+- Between ocp_trial and ocp_trial-vector (diff: in vector: loop over time then over nodes, and compute foi once for all nodes. Moreover use matrix multiplication over loop (which I later found that it produced non-structural zero, so this change was undone) )
 
 Notebooks:
 

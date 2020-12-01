@@ -187,7 +187,6 @@ def frhs_integrate(y, p, foi, pop_node, p_foi=[0] * 5):
 
 
 def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
-    # ---- dynamic constraints --------
     k1, k1ell = frhs_integrate(y, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
     k2, k2ell = frhs_integrate(y + dt / 2 * k1, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
     k3, k3ell = frhs_integrate(y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
@@ -199,7 +198,14 @@ def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
     return x_next, ell_next
 
 
-def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
+def euler_integrate(y, pvector, mob, pop_node, p_foi, dt):
+    a, b = frhs_integrate(y, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
+    x_next = y + dt * a
+    ell_next = dt * b
+    return x_next, ell_next
+
+
+def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save_to=None):
     M = setup.nnodes
 
     pvector, pvector_names = parameters.get_pvector()
@@ -257,7 +263,10 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, save_to=None):
 
             ell = 0.
             for nt in range(n_rk4_steps):
-                x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
+                if method == 'rk4':
+                    x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
+                elif method == 'euler':
+                    x_, ell_ = euler_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
             ell += ell_
 
             y[i, k + 1, :] = x_
@@ -466,7 +475,7 @@ class COVIDVaccinationOCP:
         #     constraint then ubg = lbg = the number yoiu want it to be.
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
         self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
-        print(f'DONE in {timer() - tsnlf} s')
+        print(f'DONE in {timer() - tsnlf:.1f} s')
 
         # print('-----> Building Jacobian function...', end='')
         # self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
@@ -476,13 +485,15 @@ class COVIDVaccinationOCP:
         tsbs = timer()
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
+        options['ipopt']["print_level"] = 12
+        options['ipopt']["max_iter"] = 50  # prevent of for beeing clogged in a good scenario
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
                                          N, self.Vars,
                                          setup.ind2name, parameters.mobmat_pr, setup.pos_node, setup.pop_node)
             options["iteration_callback"] = self.callback
         self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
-        print(f'DONE in {timer() - tsbs} s')
+        print(f'DONE in {timer() - tsbs:.1f} s')
 
         # To store the solution:
         self.sol = None
@@ -493,7 +504,7 @@ class COVIDVaccinationOCP:
         self.gnum = None
         self.arg = {}
         self.scenario_name = 'no_update'
-        print(f'Total build time {timer() - timer_start}')
+        print(f'Total build time {timer() - timer_start:.1f}')
 
     def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, scenario_name='test'):
         # This initialize
@@ -561,7 +572,7 @@ class COVIDVaccinationOCP:
             {float(self.g(self.gnum)['vaccines']):010f} spent.
             {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):010f} left.""")
 
-        print(f'Total Solving done in {timer() - timer_start}s')
+        print(f'Total Solving done in {timer() - timer_start:.1f}s')
         if save:
             self.saveOCP()
 
