@@ -16,9 +16,9 @@ os.makedirs(outdir, exist_ok=True)
 # All arrays here are (nnodes, ndays, (nx))7
 
 nnodes = 107
-ndays = 120  # 'full'
+ndays = 90  # 'full'
 use_matlab = False
-file_prefix = 'scnMaxVacc4000'
+file_prefix = f'scnMaxVacc2000'
 
 ocp = True
 
@@ -87,12 +87,12 @@ plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-scn_maxvacc = [1e6, 5e6, 15e6, 25e6, 35e6, 45e6]
+scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6]
 
 # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
 scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
 
-mvr = 4000
+mvr = 2000
 
 for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
     print(scn_maxvacc)
