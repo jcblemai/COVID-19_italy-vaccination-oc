@@ -15,6 +15,7 @@ nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 mob_scaling = 1e7
 
+
 class PlotIterates(ca.Callback):
     def __init__(self, name, nx, ng, np, ind_to_plot, T, N, V, ind2name, mobility, pos_node, pop_node, opts={}):
         ca.Callback.__init__(self)
@@ -485,8 +486,8 @@ class COVIDVaccinationOCP:
         tsbs = timer()
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
-        #options['ipopt']["print_level"] = 12
-        options['ipopt']["max_iter"] = 50  # prevent of for beeing clogged in a good scenario
+        # options['ipopt']["print_level"] = 12
+        options['ipopt']["max_iter"] = 100  # prevent of for beeing clogged in a good scenario
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
                                          N, self.Vars,
@@ -506,7 +507,8 @@ class COVIDVaccinationOCP:
         self.scenario_name = 'no_update'
         print(f'Total build time {timer() - timer_start:.1f}')
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, mob_initial, scenario_name='test'):
+    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, mob_initial,
+               scenario_name='test'):
         # This initialize
         lbg = self.g(0)
         ubg = self.g(0)

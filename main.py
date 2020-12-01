@@ -16,7 +16,7 @@ os.makedirs(outdir, exist_ok=True)
 # All arrays here are (nnodes, ndays, (nx))7
 
 nnodes = 107
-ndays = 30#'full'
+ndays = 30  # 'full'
 use_matlab = False
 file_prefix = '20201129'
 
@@ -60,7 +60,7 @@ for i, name in enumerate(states_names):
         for nd in range(M):
             initial[nd, k, i] = 0
 
-#p.prune_mobility(-1)
+# p.prune_mobility(-1)
 results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                   setup=setup,
                                                                   parameters=p,
@@ -76,7 +76,7 @@ if ocp:
     ocp.update(parameters=p,
                max_total_vacc=1e6,
                max_vacc_rate=max_vacc_rate,
-               states_initial=state_initial, #p.matlab_initial,#
+               states_initial=state_initial,  # p.matlab_initial,#
                control_initial=control_initial,
                mob_initial=mob,
                scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r0-m0')
@@ -86,10 +86,10 @@ plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-scn_maxvacc = [15e6, 5e5, 25e6, 20e6, 10e6, 30e6]
+scn_maxvacc = [15e6, 25e6, 20e6, 10e6, 30e6]
 
-#scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
-scn_maxvacc = [m*(nnodes/107) for m in scn_maxvacc]
+# scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
+scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
 
 # bug pour 30e6 and for mobpr, in integ
 
@@ -124,7 +124,7 @@ for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
                    states_initial=state_initial,
                    control_initial=control_initial,
                    mob_initial=mob,
-                   scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r{mvr}-m{scn_maxvacc}')
+                   scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r{mvr}-m{int(scn_maxvacc)}')
 
         ocp.solveOCP()
 
