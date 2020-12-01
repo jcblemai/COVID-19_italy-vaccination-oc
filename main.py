@@ -15,8 +15,8 @@ os.makedirs(outdir, exist_ok=True)
 
 # All arrays here are (nnodes, ndays, (nx))7
 
-nnodes = 10
-ndays = 'full'
+nnodes = 107
+ndays = 30#'full'
 use_matlab = False
 file_prefix = '20201129'
 
@@ -76,17 +76,19 @@ if ocp:
     ocp.update(parameters=p,
                max_total_vacc=1e6,
                max_vacc_rate=max_vacc_rate,
-               states_initial=p.matlab_initial,#state_initial,
+               states_initial=state_initial, #p.matlab_initial,#
                control_initial=control_initial,
+               mob_initial=mob,
                scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r0-m0')
 
-    ocp.solveOCP()
+#    ocp.solveOCP()
 plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-scn_maxvacc = [30e6, 1e6, 15e6, 5e5, 25e6, 20e6, 10e6]
+scn_maxvacc = [15e6, 5e5, 25e6, 20e6, 10e6, 30e6]
 
+#scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
 scn_maxvacc = [m*(nnodes/107) for m in scn_maxvacc]
 
 # bug pour 30e6 and for mobpr, in integ
@@ -94,29 +96,34 @@ scn_maxvacc = [m*(nnodes/107) for m in scn_maxvacc]
 mvr = 4000
 
 for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
+    print(scn_maxvacc)
 
     control_initial = np.zeros((M, N))
     max_vacc_rate = np.zeros((M, N))
-    allocated = 0
+    allocated_total = 0
+    unvac_nd = np.copy(setup.pop_node)
+
     for k in range(N):
         for nd in range(M):
             max_vacc_rate[nd, k] = mvr
-            if allocated + mvr < scn_maxvacc:
+            if (allocated_total + mvr < scn_maxvacc) and (unvac_nd[nd] - mvr > 0):
                 control_initial[nd, k] = mvr
-                allocated += mvr
+                allocated_total += mvr
+                unvac_nd[nd] -= mvr
 
     results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                       setup=setup,
                                                                       parameters=p,
                                                                       controls=control_initial,
                                                                       save_to=f'{outdir}{file_prefix}-int{nnodes}-r{mvr}-m{int(scn_maxvacc)}',
-                                                                      n_rk4_steps=10)
+                                                                      n_rk4_steps=n_int_steps)
     if ocp:
         ocp.update(parameters=p,
-                   max_total_vacc=10,
+                   max_total_vacc=scn_maxvacc,
                    max_vacc_rate=max_vacc_rate,
                    states_initial=state_initial,
                    control_initial=control_initial,
+                   mob_initial=mob,
                    scenario_name=f'{outdir}{file_prefix}-opt{nnodes}-r{mvr}-m{scn_maxvacc}')
 
         ocp.solveOCP()

@@ -13,7 +13,7 @@ plt.ion()
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-
+mob_scaling = 1e7
 
 class PlotIterates(ca.Callback):
     def __init__(self, name, nx, ng, np, ind_to_plot, T, N, V, ind2name, mobility, pos_node, pop_node, opts={}):
@@ -160,7 +160,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
             Cii * (S + E + P + R + A + V) + I + 1e-10))
 
     # v = u[0]
-    foi = mob / 1e5 + foi_ii
+    foi = mob / mob_scaling + foi_ii
     rhs = [None] * nx
     vaccrate = 0
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
@@ -247,7 +247,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m] + 1e-15))
 
         for i in range(M):
-            mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * 1e5
+            mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
             mob[i, k] = mob_ik
 
@@ -441,7 +441,7 @@ class COVIDVaccinationOCP:
                 f += ell_ik_  # MOD: before  ell_ik_
                 cases += cases_ik
                 reg += reg_ik
-                mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * 1e5
+                mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
                 # spatial, vaccines and dyn are put in g(x),
                 # with constraints that spatial and dyn are equal to zero
@@ -506,7 +506,7 @@ class COVIDVaccinationOCP:
         self.scenario_name = 'no_update'
         print(f'Total build time {timer() - timer_start:.1f}')
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, scenario_name='test'):
+    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, mob_initial, scenario_name='test'):
         # This initialize
         lbg = self.g(0)
         ubg = self.g(0)
@@ -538,7 +538,8 @@ class COVIDVaccinationOCP:
 
         for k in range(self.N):
             for nd in range(self.M):
-                init['u', nd, k] = control_initial[nd, k]
+                init['u', nd, k, 'v'] = control_initial[nd, k]
+                init['u', nd, k, 'mob'] = mob_initial[nd, k]
 
         self.arg = {'lbg': lbg,
                     'ubg': ubg,
@@ -568,9 +569,9 @@ class COVIDVaccinationOCP:
         self.gnum = self.g(gnum)  # 2times ?
         print(f"""
         Vaccines stockpile: 
-            {float(self.arg['ubg']['vaccines']):010f} total.
-            {float(self.g(self.gnum)['vaccines']):010f} spent.
-            {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):010f} left.""")
+            {float(self.arg['ubg']['vaccines']):.1f} total.
+            {float(self.g(self.gnum)['vaccines']):.1f} spent.
+            {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):.1f} left.""")
 
         print(f'Total Solving done in {timer() - timer_start:.1f}s')
         if save:
