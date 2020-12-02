@@ -15,10 +15,10 @@ os.makedirs(outdir, exist_ok=True)
 
 # All arrays here are (nnodes, ndays, (nx))7
 
-nnodes = 107
-ndays = 90  # 'full'
+nnodes = 10
+ndays = 10  # 'full'
 use_matlab = False
-file_prefix = f'scnMaxVacc2000'
+file_prefix = f'scnMaxVacc8000short'
 
 ocp = True
 
@@ -59,8 +59,11 @@ for i, name in enumerate(states_names):
     for k in range(N + 1):
         for nd in range(M):
             initial[nd, k, i] = 0
-
-# p.prune_mobility(-1)
+plt.spy(p.mobmat_pr)
+plt.show()
+p.prune_mobility(-1)
+plt.spy(p.mobmat_pr)
+plt.show()
 results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                   setup=setup,
                                                                   parameters=p,
@@ -87,12 +90,12 @@ plt.figure(figsize=(10, 10))
 plt.step(np.arange(mob.T.shape[0]), mob.T)
 plt.show()
 
-scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6]
+scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6, 20e6]
 
 # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
 scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
 
-mvr = 2000
+mvr = 8000
 
 for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
     print(scn_maxvacc)

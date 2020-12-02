@@ -355,6 +355,7 @@ class COVIDVaccinationOCP:
             rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX, p_foiSX],
                                    [x_next, ell_next])
 
+
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
         VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
@@ -368,6 +369,8 @@ class COVIDVaccinationOCP:
 
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX, p_foiSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
+
+        cat.dotdraw(x_, figsize=(10, 10))
 
         # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
@@ -418,7 +421,6 @@ class COVIDVaccinationOCP:
                 foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
                             parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
                            (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m] + 1e-10))
-
             dyn[k] = []
             spatial[k] = []
             Sgeq0[k] = []
@@ -444,6 +446,7 @@ class COVIDVaccinationOCP:
                 reg += reg_ik
                 mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
+
                 # spatial, vaccines and dyn are put in g(x),
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
@@ -455,6 +458,7 @@ class COVIDVaccinationOCP:
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
+        #cat.dotdraw(mob_ik, figsize=(10, 10))
         print('-----> Writing constraints, ...', end='')
         self.g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
@@ -488,6 +492,7 @@ class COVIDVaccinationOCP:
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
         options['ipopt']["max_iter"] = 120  # prevent of for beeing clogged in a good scenario
+        options['ipopt']["print_info_string"] = "yes"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
                                          N, self.Vars,
