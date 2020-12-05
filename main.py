@@ -13,22 +13,32 @@ outdir = 'model_output/'
 
 
 @click.command()
-@click.option("-s", "--scenario", "scenario", default='all', help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-s", "--scenario_id", "scn_id", default=0, help="Index of scenario to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test', show_default=True,
               help="file prefix to add to identify the current set of runs.")
-def cli(scenario, nnodes, ndays, use_matlab, file_prefix):
-    return scenario, nnodes, ndays, use_matlab, file_prefix
+def cli(scn_id, nnodes, ndays, use_matlab, file_prefix):
+    return scn_id, nnodes, ndays, use_matlab, file_prefix
 
 
+print(__name__)
 if __name__ == '__main__':
-    scenario, nnodes, ndays, use_matlab, file_prefix = cli()
+    # standalone_mode: so click doesn't exit, see
+    # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
+    scn_id, nnodes, ndays, use_matlab, file_prefix = cli(standalone_mode=False)
+
     os.makedirs(outdir, exist_ok=True)
 
     scenario_specifications = {'ndays': [60, 90, 120, 'full']}
+    ndays = scenario_specifications['ndays'][scn_id]
+    print(f"""Running scenario {scn_id}, building setup with
+ndays: {ndays}
+nnodes: {nnodes}
+use_matlab: {use_matlab}
+---> Saving results to prefix: {file_prefix}""")
 
     # All arrays here are (nnodes, ndays, (nx))7
     ocp = True
@@ -36,7 +46,7 @@ if __name__ == '__main__':
     if use_matlab:
         save_param = True
 
-    n_int_steps = 1
+    n_int_steps = 5
 
     setup = ItalySetup(nnodes, ndays)
     M = setup.nnodes
@@ -99,12 +109,12 @@ if __name__ == '__main__':
 
     scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6, 20e6]
 
-    scn_maxvacc = [16e6]
+    scn_maxvacc = [3000 * 107 * ndays * 2/3]
 
     # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
-    #scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
+    # scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
 
-    mvr = 8000
+    mvr = 3000
 
     for scn_id, scn_maxvacc in enumerate(scn_maxvacc):
 

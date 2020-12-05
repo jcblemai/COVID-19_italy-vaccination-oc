@@ -4,7 +4,7 @@
 #SBATCH --cpus-per-task 36   # No more than the number of CPU in a node. CPU <- coeur dans slurm
 #SBATCH --mem 180G          # Per node
 #SBATCH --time 3-0           #J-H:m:s
-#SBATCH --array=0-4         # Index are choosen by me (can relaunch)
+#SBATCH --array=0-3         # Index are choosen by me (can relaunch)
 
 N=${SLURM_ARRAY_TASK_ID}
 

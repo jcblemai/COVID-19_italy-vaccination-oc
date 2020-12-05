@@ -491,7 +491,7 @@ class COVIDVaccinationOCP:
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
-        options['ipopt']["max_iter"] = 400  # prevent of for beeing clogged in a good scenario
+        #options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
