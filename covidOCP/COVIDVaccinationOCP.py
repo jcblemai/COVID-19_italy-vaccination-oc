@@ -370,7 +370,7 @@ class COVIDVaccinationOCP:
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX, p_foiSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
 
-        cat.dotdraw(x_, figsize=(10, 10))
+        #cat.dotdraw(x_, figsize=(10, 10))
 
         # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
@@ -491,7 +491,7 @@ class COVIDVaccinationOCP:
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
-        options['ipopt']["max_iter"] = 120  # prevent of for beeing clogged in a good scenario
+        options['ipopt']["max_iter"] = 400  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
