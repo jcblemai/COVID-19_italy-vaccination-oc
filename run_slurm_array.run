@@ -22,6 +22,6 @@ export OMP_NUM_THREADS=$(( $SLURM_CPUS_PER_TASK / 2 ))
 export TASK_ID0=$(( ${SLURM_ARRAY_TASK_ID} * 2 + 0 ))
 export TASK_ID1=$(( ${SLURM_ARRAY_TASK_ID} * 2 + 1 ))
 
-srun -c $OMP_NUM_THREADS --mem-per-cpu=5G -m '*:block:*' python main.py $TASK_ID0 > out$TASK_ID0.out 2>&1 &
-srun -c $OMP_NUM_THREADS --mem-per-cpu=5G -m '*:block:*' python main.py $TASK_ID1 > out$TASK_ID1.out 2>&1 &
+srun -c $OMP_NUM_THREADS --mem-per-cpu=5G -m '*:block:*' python main.py -s $TASK_ID0 > out$TASK_ID0.out 2>&1 &
+srun -c $OMP_NUM_THREADS --mem-per-cpu=5G -m '*:block:*' python main.py -s $TASK_ID1 > out$TASK_ID1.out 2>&1 &
 wait  # so it waits for both
