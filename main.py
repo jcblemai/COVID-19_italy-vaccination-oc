@@ -14,7 +14,7 @@ outdir = 'model_output/'
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_id", default=0, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -109,7 +109,7 @@ use_matlab: {use_matlab}
 
     scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6, 20e6]
 
-    scn_maxvacc = [3000 * 107 * ndays * 2/3]
+    scn_maxvacc = [3000 * 107 * N * 2/3]
 
     # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
     # scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
