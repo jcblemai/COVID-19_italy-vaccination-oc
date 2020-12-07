@@ -18,7 +18,7 @@ outdir = 'model_output/'
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
-@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test', show_default=True,
+@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='testrk1s', show_default=True,
               help="file prefix to add to identify the current set of runs.")
 def cli(scn_id, nnodes, ndays, use_matlab, file_prefix):
     return scn_id, nnodes, ndays, use_matlab, file_prefix
@@ -46,7 +46,7 @@ use_matlab: {use_matlab}
     if use_matlab:
         save_param = True
 
-    n_int_steps = 5
+    n_int_steps = 1
 
     setup = ItalySetup(nnodes, ndays)
     M = setup.nnodes
