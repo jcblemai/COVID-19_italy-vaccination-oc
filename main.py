@@ -6,28 +6,50 @@ import pickle
 import matplotlib.pyplot as plt
 import click
 import sys, os
+import itertools
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 outdir = 'model_output/'
-
-
 start = 'late'
+ocp = True
+n_int_steps = 5
 
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_id", default=0, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
-@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='testrk1s', show_default=True,
+@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='',
+              show_default=True,
               help="file prefix to add to identify the current set of runs.")
 def cli(scn_id, nnodes, ndays, use_matlab, file_prefix):
     return scn_id, nnodes, ndays, use_matlab, file_prefix
 
 
-print(__name__)
+def pick_scenario(setup, scn_id):
+    scenarios_specs = {
+        'vaccpermonthM': [1, 2.5, 7.5],
+        'vacctotalM': [10, 15, 20]
+    }
+
+    # Compute all permutatios
+    keys, values = zip(*scenarios_specs.items())
+    permuted_specs = [dict(zip(keys, v)) for v in itertools.product(*values)]
+
+    scn_spec = permuted_specs[scn_id]
+
+    tot_pop = setup.pop_node.sum()
+    scenario = {'name': f"FR{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
+                'vacctotal': scn_spec['vacctotalM']*1e6,
+                'rate_fomula': f"({scn_spec['vaccpermonthM'] / tot_pop / 30}*pop_nd)"
+    }
+
+    return scenario
+
+
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
@@ -35,25 +57,24 @@ if __name__ == '__main__':
 
     os.makedirs(outdir, exist_ok=True)
 
-    scenario_specifications = {'ndays': [60, 90, 120, 'full']}
-    ndays = scenario_specifications['ndays'][scn_id]
-    print(f"""Running scenario {scn_id}, building setup with
-ndays: {ndays}
-nnodes: {nnodes}
-use_matlab: {use_matlab}
----> Saving results to prefix: {file_prefix}""")
-
-    # All arrays here are (nnodes, ndays, (nx))7
-    ocp = True
-
+    # All arrays here are (nnodes, ndays, (nx))
     if use_matlab:
         save_param = True
-
-    n_int_steps = 1
 
     setup = ItalySetup(nnodes, ndays)
     M = setup.nnodes
     N = len(setup.model_days) - 1
+
+    scenario = pick_scenario(setup, scn_id)
+    file_prefix = file_prefix + scenario['name']
+
+    print(f"""Running scenario {scn_id}: {scenario['name']}, building setup with
+    ndays: {ndays}
+    nnodes: {nnodes}
+    use_matlab: {use_matlab}
+    when?  {start}
+    rk_steps: {n_int_steps}
+    ---> Saving results to prefix: {file_prefix}""")
 
     if use_matlab:
         import matlab.engine
@@ -80,7 +101,6 @@ use_matlab: {use_matlab}
 
         p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M, run_type='future')
 
-
     control_initial = np.zeros((M, N))
     max_vacc_rate = np.zeros((M, N))
     for k in range(N):
@@ -93,6 +113,7 @@ use_matlab: {use_matlab}
         for k in range(N + 1):
             for nd in range(M):
                 initial[nd, k, i] = 0
+                
 
     results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                       setup=setup,
@@ -122,7 +143,7 @@ use_matlab: {use_matlab}
 
     scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6, 20e6]
 
-    scn_maxvacc = [3000 * 107 * N * 2/3]
+    scn_maxvacc = [3000 * 107 * N * 2 / 3]
 
     # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
     # scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
