@@ -7,23 +7,25 @@ nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 
-
 class OCParameters:
-    def __init__(self, eng, setup, M, freq='1D'):
+    def __init__(self, eng, setup, M, run_type, freq='1D'):
         self.M = M
         self.mobintime = setup.mobility_ts.resample(freq).mean()
-        matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
-        matlab_end_date = datetime.date(2020, 7, 1)
-        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
+        if run_type == 'past':
+            matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
+            matlab_end_date = datetime.date(2020, 7, 1)
+        elif run_type == 'future':
+            matlab_start_date = datetime.date(2021, 1, 1)
+            matlab_end_date = datetime.date(2021, 1, 1)
 
         integ_matlab = np.array(eng.eval('x'))
-
         self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
         for i, name in enumerate(states_names):
-            for k in range(len(self.matlab_model_days)):
-                for nd in range(M):
-                    if name != 'V':  # Other wise we go into the cumulative of the matlab integration and place it as V
-                        self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
+            for nd in range(M):
+                if name != 'V':  # Other wise we go into the cumulativ of the matlab integration and place it as V
+                    self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
+
+        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
 
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
@@ -75,6 +77,9 @@ class OCParameters:
             pvector.append(v)
         pvector_names = list(self.model_params.keys()) + list(self.hyper_params.keys())
         return pvector, pvector_names
+
+    def update_from_data_assimilation(self, rel_idx):
+        self
 
 
 def get_parameters_from_matlab(eng, s, model_size, model_days, freq):

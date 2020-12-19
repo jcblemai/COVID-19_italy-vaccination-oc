@@ -34,11 +34,11 @@ gammaA  = V.gammaA_over_gammaQ*gammaQ;
 betaP0 = PAR(1)/(1/deltaP + epsilonI*sigma/(gammaI + alphaI + eta) + epsilonA*(1-sigma)/gammaA);
 
 
-%% Things to do:
-ndays = 164;
+%% Things to do (@ Damiano need your help here)
+ndays = 1;
 % ...
-x = zeros(ndays, 1177); % x should contains, for each days: S1 S2 S3 ... S107 E1 ... E107 ... of this realization i
-V.zeta = 0; % This should contains zeta;
+x = x0_real_out(i,:);  % x should contains, for each days: S1 S2 S3 ... S107 E1 ... E107 ... of this realization i
+V.zeta = 1; % This should contains zeta, value is 0.45 in the paper
 V.x0 = x0_real_out(i,:);  % contains x0 of this i, in the same format S1 .. S107 E1 ...E107 ...
 % Beta: IN SEPIA.m there was:
 % ---> Calculate  trasmission ratio (beta_ratio) for each node (1st dimension) and day of
@@ -48,9 +48,8 @@ V.x0 = x0_real_out(i,:);  % contains x0 of this i, in the same format S1 .. S107
 % ---> betaP3P2 = betaP3P2_reg(V.prov_IDreg); %province value
 % ---> beta_p = eval(V.beta_string);
 % ---> beta_ratio = interp1(V.tbeta,beta_p',V.time_model)';
-% i'd need this betaratio here, but how to get it.
+% i'd need this betaratio here, but how to get it. Is this right ?
 
-%% Questions:
-% is V.p a vector I shoud reapeat to the end of time ? 
-
+beta_ratio = beta_r(i,1,:);  % why 1 and not 2 here ?
+beta_ratio = beta_ratio(:);  % Is this correct ? 
 

@@ -7,7 +7,6 @@ import geopandas as gpd
 
 plt.ion()
 
-
 class ItalySetup:
     def __init__(self, nnodes='full', ndays='full'):  # small (M=10),  medium or large (M=68)
 

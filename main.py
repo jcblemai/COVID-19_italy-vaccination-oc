@@ -12,9 +12,12 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 outdir = 'model_output/'
 
 
+start = 'late'
+
+
 @click.command()
 @click.option("-s", "--scenario_id", "scn_id", default=0, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default='full', envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -59,7 +62,7 @@ use_matlab: {use_matlab}
         eng.cd('geography-paper-master/', nargout=0)
         eng.run('single_build.m', nargout=0)
 
-        p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M)
+        p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M, run_type='past')
         if save_param:
             with open(f'{outdir}parameters_{nnodes}.pkl', 'wb') as out:
                 pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
@@ -67,6 +70,16 @@ use_matlab: {use_matlab}
     else:
         with open(f'{outdir}parameters_{nnodes}.pkl', 'rb') as inp:
             p = pickle.load(inp)
+
+    if start == 'late':
+        import matlab.engine
+
+        eng = matlab.engine.start_matlab()
+        eng.cd('data-assimilation/', nargout=0)
+        eng.run('minimal_interface.m', nargout=0)
+
+        p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M, run_type='future')
+
 
     control_initial = np.zeros((M, N))
     max_vacc_rate = np.zeros((M, N))
