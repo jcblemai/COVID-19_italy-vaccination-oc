@@ -8,9 +8,22 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 
 class OCParameters:
-    def __init__(self, eng, setup, M, when, freq='1D'):
+    def __init__(self, setup, M, when):
         self.M = M
-        self.mobintime = setup.mobility_ts.resample(freq).mean()
+
+        import matlab.engine
+
+        eng = matlab.engine.start_matlab()
+        if when == 'past':
+            eng.cd('geography-paper-master/', nargout=0)
+            eng.run('single_build.m', nargout=0)
+        if when == 'future':
+            eng.cd('data-assimilation/', nargout=0)
+            # The realization with the maximum infected at the end of the 3 months is realization 33.
+            # The realization with the median number of infected at the end of the 3 months is realization 24.
+            eng.workspace['i'] = 24
+            eng.run('minimal_interface.m', nargout=0)
+
         if when == 'past':
             matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
             matlab_end_date = datetime.date(2020, 7, 1)
@@ -31,8 +44,7 @@ class OCParameters:
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
                                                                                                       M,
-                                                                                                      self.matlab_model_days,
-                                                                                                      freq)
+                                                                                                      self.matlab_model_days)
         self.params_structural = {'betaP0': p_dict['betaP0'],
                                   'epsilonA': p_dict['epsilonA'],
                                   'epsilonI': p_dict['epsilonI'],
@@ -52,14 +64,13 @@ class OCParameters:
         }
 
         mob_prun = 0.0006
-        self.mobmat_pr = self.prune_mobility(mob_prun)
+        self.mobmat_pr = self.prune_mobility(setup, mob_prun)
 
         # Numpy array from dataframes:
-        self.mobintime_arr = self.mobintime.to_numpy().T
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
-    def prune_mobility(self, mob_prun=0.0006):
-        mobK = self.mobintime.to_numpy().T[:, 0]
+    def prune_mobility(self, setup, mob_prun=0.0006):
+        mobK = setup.mobintime.to_numpy().T[:, 0]
         C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
         # print(f'pruning {C[C < mob_prun].size} non-diagonal mobility elements of {C.size - self.M}.')
@@ -78,11 +89,17 @@ class OCParameters:
         pvector_names = list(self.model_params.keys()) + list(self.hyper_params.keys())
         return pvector, pvector_names
 
-    def update_from_data_assimilation(self, rel_idx):
-        self
+    def apply_epicourse(self, setup, beta_mult):
+        beta_initial = self.betaratiointime_arr[:, 0]
+        data = np.repeat(beta_initial[:, np.newaxis], setup.ndays, axis=1)
+        data = data*beta_mult
+
+        self.betaratiointime = pd.DataFrame(data.T, columns=self.betaratiointime.columns,
+                                            index=setup.model_days)
+        self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
 
-def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
+def get_parameters_from_matlab(eng, s, model_size, model_days):
     p = {}  # 1D parameters
     p['deltaE'] = eng.eval('deltaE')
     p['deltaP'] = eng.eval('deltaP')
@@ -117,7 +134,7 @@ def get_parameters_from_matlab(eng, s, model_size, model_days, freq):
 
     beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
     beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
-    betaratiointime = beta_ratio_ts.resample(freq).mean()
+    betaratiointime = beta_ratio_ts.resample('1D').mean()
 
     mobile_frac = np.array(eng.eval('V.p'))[:model_size].flatten()
     mobility_matrix = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]

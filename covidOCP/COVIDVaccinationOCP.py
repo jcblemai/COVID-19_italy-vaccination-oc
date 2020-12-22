@@ -7,9 +7,9 @@ import pandas as pd
 from tqdm import tqdm
 from timeit import default_timer as timer
 
-if "Agg" not in mpl.get_backend():
-    mpl.interactive(True)
-plt.ion()
+#if "Agg" not in mpl.get_backend():
+#    mpl.interactive(True)
+#plt.ion()
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
@@ -225,7 +225,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
     print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
-        mobK = parameters.mobintime_arr[:, k]
+        mobK = setup.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
         C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat_pr
         np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
@@ -560,7 +560,7 @@ class COVIDVaccinationOCP:
 
         for nd in range(self.M):
             for k in range(self.N):
-                self.arg['p']['cov', nd, k, 'mobility_t'] = self.parameters.mobintime_arr[nd, k]
+                self.arg['p']['cov', nd, k, 'mobility_t'] = self.setup.mobintime_arr[nd, k]
                 self.arg['p']['cov', nd, k, 'betaratio_t'] = self.parameters.betaratiointime_arr[nd, k]
 
         self.scenario_name = scenario_name

@@ -1,7 +1,6 @@
 
 load('results_true/state_par20210101.mat')
 % Show dates
-datestr(time_b)
 % choosen realizatio is o
 
 
