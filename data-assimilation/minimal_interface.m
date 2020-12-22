@@ -2,8 +2,7 @@
 load('results_true/state_par20210101.mat')
 % Show dates
 datestr(time_b)
-% choose realization:
-i = 30;
+% choosen realizatio is o
 
 
 %%% things to check:

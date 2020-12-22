@@ -8,7 +8,7 @@ import geopandas as gpd
 plt.ion()
 
 class ItalySetup:
-    def __init__(self, nnodes='full', ndays='full'):  # small (M=10),  medium or large (M=68)
+    def __init__(self, nnodes='full', ndays='full', when='future'):  # small (M=10),  medium or large (M=68)
 
         geodata = pd.read_csv('italy-data/geodata.csv')
 
@@ -30,11 +30,18 @@ class ItalySetup:
         self.pop_node = pop_node
         self.nnodes = len(ind2name)
 
-        self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
-        if ndays == 'full':
-            self.end_date = datetime.date(2020, 7, 1)
-        else:
-            self.end_date = self.start_date + datetime.timedelta(days=ndays)
+        if when == 'past':
+            self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
+            if ndays == 'full':
+                self.end_date = datetime.date(2020, 7, 1)
+            else:
+                self.end_date = self.start_date + datetime.timedelta(days=ndays)
+        elif when == 'future':
+            self.start_date = datetime.date(2021, 1, 1)  # fix lentgh
+            if ndays == 'full':
+                self.end_date = datetime.date(2021, 7, 1)
+            else:
+                self.end_date = self.start_date + datetime.timedelta(days=ndays)
 
         self.model_days = pd.date_range(self.start_date, self.end_date, freq='1D')
 
@@ -42,6 +49,10 @@ class ItalySetup:
         mobility_ts.columns = np.arange(len(mobility_ts.columns))
         mobility_ts.index = mobility_ts.index.rename('date')
         self.mobility_ts = mobility_ts.iloc[:, :nnodes]
+        if when == 'future':
+            mobility_ts = pd.DataFrame(1, columns=np.arange(len(mobility_ts.columns)),
+                                       index=self.model_days)
+
 
         shp = gpd.read_file('italy-data/shp/ProvCM01012019_g_WGS84.shp').sort_values('COD_PROV')
 

@@ -56,12 +56,13 @@ if __name__ == '__main__':
     scn_id, nnodes, ndays, use_matlab, file_prefix = cli(standalone_mode=False)
 
     os.makedirs(outdir, exist_ok=True)
+    ndays = 31
 
     # All arrays here are (nnodes, ndays, (nx))
     if use_matlab:
         save_param = True
 
-    setup = ItalySetup(nnodes, ndays)
+    setup = ItalySetup(nnodes, ndays, when)
     M = setup.nnodes
     N = len(setup.model_days) - 1
 
@@ -84,6 +85,9 @@ if __name__ == '__main__':
             eng.run('single_build.m', nargout=0)
         if when == 'future':
             eng.cd('data-assimilation/', nargout=0)
+            # The realization with the maximum infected at the end of the 3 months is realization 33.
+            # The realization with the median number of infected at the end of the 3 months is realization 24.
+            eng.workspace['i'] = 24
             eng.run('minimal_interface.m', nargout=0)
 
         p = COVIDParametersOCP.OCParameters(eng=eng, setup=setup, M=M, when=when)
@@ -136,7 +140,7 @@ if __name__ == '__main__':
 
     scn_maxvacc = [1e6, 4e6, 8e6, 12e6, 16e6, 20e6]
 
-    scn_maxvacc = [3000 * 107 * N * 2 / 3]
+    #scn_maxvacc = [3000 * 107 * N * 2 / 3]
 
     # scn_maxvacc = [m*(nnodes/107)*(ndays/160) for m in scn_maxvacc]
     # scn_maxvacc = [int(m * (nnodes / 107)) for m in scn_maxvacc]
