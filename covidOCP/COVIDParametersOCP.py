@@ -8,15 +8,16 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 
 
 class OCParameters:
-    def __init__(self, eng, setup, M, run_type, freq='1D'):
+    def __init__(self, eng, setup, M, when, freq='1D'):
         self.M = M
         self.mobintime = setup.mobility_ts.resample(freq).mean()
-        if run_type == 'past':
+        if when == 'past':
             matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
             matlab_end_date = datetime.date(2020, 7, 1)
-        elif run_type == 'future':
+        elif when == 'future':
             matlab_start_date = datetime.date(2021, 1, 1)
-            matlab_end_date = datetime.date(2021, 1, 1)
+            matlab_end_date = datetime.date(2021, 1, 31)
+        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
 
         integ_matlab = np.array(eng.eval('x'))
         self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
@@ -32,7 +33,6 @@ class OCParameters:
                                                                                                       M,
                                                                                                       self.matlab_model_days,
                                                                                                       freq)
-
         self.params_structural = {'betaP0': p_dict['betaP0'],
                                   'epsilonA': p_dict['epsilonA'],
                                   'epsilonI': p_dict['epsilonI'],
