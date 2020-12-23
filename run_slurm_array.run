@@ -27,4 +27,4 @@ srun python -u main.py -s ${SLURM_ARRAY_TASK_ID} -t $MDL_DAYS -n 107 -f $F_PREFI
 
 #srun -c $OMP_NUM_THREADS  --mem-per-cpu=5G -m '*:block:*' python -u main.py -s $TASK_ID0 -t $MDL_DAYS -n 107 -f $F_PREFIX --use_matlab False > out$TASK_ID0.out 2>&1 &  # is conflicting
 #srun -c $OMP_NUM_THREADS  --mem-per-cpu=5G -m '*:block:*' python -u main.py -s $TASK_ID1 -t $MDL_DAYS -n 107 -f $F_PREFIX --use_matlab False > out$TASK_ID1.out 2>&1 &
-#wait  # so it waits for both
+wait  # so it waits for both
