@@ -21,7 +21,7 @@ ocp = None
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[0, 1], help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='',
@@ -45,7 +45,6 @@ def pick_scenario(setup, scn_id):
     permuted_specs = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
     scn_spec = permuted_specs[scn_id]
-    print(len(permuted_specs))
 
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
@@ -70,6 +69,7 @@ if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
     scn_ids, nnodes, ndays, use_matlab, file_prefix = cli(standalone_mode=False)
+    #scn_ids = np.arange(18)
 
     os.makedirs(outdir, exist_ok=True)
 
