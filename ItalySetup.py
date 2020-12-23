@@ -46,7 +46,7 @@ class ItalySetup:
         mobility_ts.index = mobility_ts.index.rename('date')
         self.mobility_ts = mobility_ts.iloc[:, :nnodes]
         if when == 'future':
-            self.mobility_ts = pd.DataFrame(1, columns=np.arange(len(mobility_ts.columns)),
+            self.mobility_ts = pd.DataFrame(1, columns=np.arange(len(self.mobility_ts.columns)),
                                             index=self.model_days)
 
         self.mobintime = self.mobility_ts.resample('1D').mean()
