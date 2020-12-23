@@ -36,7 +36,7 @@ def cli(scn_ids, nnodes, ndays, use_matlab, file_prefix):
 def pick_scenario(setup, scn_id):
     if setup.nnodes == 107:
         scenarios_specs = {
-            'vacctotalM': [10, 15, 20],
+            'vacctotalM': [2, 5, 10, 15, 20],
             'vaccpermonthM': [1, 2.5, 7.5],
             'epicourse': ['U', 'L']  # 'U'
         }
@@ -52,6 +52,9 @@ def pick_scenario(setup, scn_id):
     permuted_specs = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
     scn_spec = permuted_specs[scn_id]
+    # check if the scenario is useless:
+    if scn_spec['vaccpermonthM']*setup.ndays/30 < scn_spec['vacctotalM']:
+        raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
