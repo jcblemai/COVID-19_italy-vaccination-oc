@@ -49,7 +49,7 @@ def pick_scenario(setup, scn_id):
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
                 'vacctotal': scn_spec['vacctotalM'] * 1e6,
-                'rate_fomula': f"({scn_spec['vaccpermonthM']*1e6 / tot_pop / 30}*pop_nd)"
+                'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
     # Build beta scenarios:
     if scn_spec['epicourse'] == 'C':
@@ -65,11 +65,34 @@ def pick_scenario(setup, scn_id):
     return scenario
 
 
+def build_scenario(setup, scenario):
+    M = setup.nnodes
+    N = setup.ndays - 1
+    control_initial = np.zeros((M, N))
+    max_vacc_rate = np.zeros((M, N))
+    allocated_total = 0
+    unvac_nd = np.copy(setup.pop_node)
+
+    for k in range(N):
+        for nd in range(M):
+            pop_nd = setup.pop_node[nd]
+            max_vacc_rate[nd, k] = eval(scenario['rate_fomula'])
+            if (allocated_total + max_vacc_rate[nd, k] < scenario['vacctotal']) and (
+                    unvac_nd[nd] - max_vacc_rate[nd, k] > 0):
+                control_initial[nd, k] = max_vacc_rate[nd, k]
+                allocated_total += max_vacc_rate[nd, k]
+                unvac_nd[nd] -= max_vacc_rate[nd, k]
+
+    vacc_total = scenario['vacctotal']
+
+    return max_vacc_rate, vacc_total, control_initial
+
+
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
     scn_ids, nnodes, ndays, use_matlab, file_prefix = cli(standalone_mode=False)
-    #scn_ids = np.arange(18)
+    # scn_ids = np.arange(18)
 
     os.makedirs(outdir, exist_ok=True)
 
@@ -103,16 +126,7 @@ if __name__ == '__main__':
 
         control_initial = np.zeros((M, N))
         max_vacc_rate = np.zeros((M, N))
-        for k in range(N):
-            for nd in range(M):
-                max_vacc_rate[nd, k] = 0
-                control_initial[nd, k] = 0
-
         initial = np.zeros((M, N + 1, nx))
-        for i, name in enumerate(states_names):
-            for k in range(N + 1):
-                for nd in range(M):
-                    initial[nd, k, i] = 0
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,
@@ -127,19 +141,7 @@ if __name__ == '__main__':
                                                           setup=setup, parameters=p,
                                                           show_steps=False)
 
-        control_initial = np.zeros((M, N))
-        max_vacc_rate = np.zeros((M, N))
-        allocated_total = 0
-        unvac_nd = np.copy(setup.pop_node)
-
-        for k in range(N):
-            for nd in range(M):
-                pop_nd = setup.pop_node[nd]
-                max_vacc_rate[nd, k] = eval(scenario['rate_fomula'])
-                if (allocated_total + max_vacc_rate[nd, k] < scenario['vacctotal']) and (unvac_nd[nd] - max_vacc_rate[nd, k] > 0):
-                    control_initial[nd, k] = max_vacc_rate[nd, k]
-                    allocated_total += max_vacc_rate[nd, k]
-                    unvac_nd[nd] -= max_vacc_rate[nd, k]
+        max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,
@@ -149,7 +151,7 @@ if __name__ == '__main__':
                                                                           n_rk4_steps=n_int_steps)
         if optimize:
             ocp.update(parameters=p,
-                       max_total_vacc=scenario['vacctotal'],
+                       max_total_vacc=vacc_total,
                        max_vacc_rate=max_vacc_rate,
                        states_initial=state_initial,
                        control_initial=control_initial,
