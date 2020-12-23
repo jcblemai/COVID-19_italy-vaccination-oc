@@ -19,7 +19,7 @@ ocp = None
 
 
 @click.command()
-@click.option("-s", "--scenario_id", "scn_ids", default=[0, 1], help="Index of scenario to run")
+@click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
@@ -29,16 +29,23 @@ ocp = None
               help="file prefix to add to identify the current set of runs.")
 def cli(scn_ids, nnodes, ndays, use_matlab, file_prefix):
     if not isinstance(scn_ids, list):
-        scn_ids = [scn_ids]
+        scn_ids = [int(scn_ids)]
     return scn_ids, nnodes, ndays, use_matlab, file_prefix
 
 
 def pick_scenario(setup, scn_id):
-    scenarios_specs = {
-        'vacctotalM': [10, 15, 20],
-        'vaccpermonthM': [1, 2.5, 7.5],
-        'epicourse': ['U', 'L']  # 'U'
-    }
+    if setup.nnodes == 107:
+        scenarios_specs = {
+            'vacctotalM': [10, 15, 20],
+            'vaccpermonthM': [1, 2.5, 7.5],
+            'epicourse': ['U', 'L']  # 'U'
+        }
+    if setup.nnodes == 10:
+        scenarios_specs = {
+            'vacctotalM': [.5, 1, 1.5],
+            'vaccpermonthM': [1],
+            'epicourse': ['U']  # 'U', 'L'
+        }
 
     # Compute all permutatios
     keys, values = zip(*scenarios_specs.items())
