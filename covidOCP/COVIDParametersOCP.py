@@ -68,6 +68,7 @@ class OCParameters:
 
         # Numpy array from dataframes:
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
+        self.betaratiointime_baseline = self.betaratiointime_arr[:, 0]
 
     def prune_mobility(self, setup, mob_prun=0.0006):
         mobK = setup.mobintime.to_numpy().T[:, 0]
@@ -90,7 +91,7 @@ class OCParameters:
         return pvector, pvector_names
 
     def apply_epicourse(self, setup, beta_mult):
-        beta_initial = self.betaratiointime_arr[:, 0]
+        beta_initial = self.betaratiointime_baseline
         data = np.repeat(beta_initial[:, np.newaxis], setup.ndays, axis=1)
         data = data*beta_mult
 
