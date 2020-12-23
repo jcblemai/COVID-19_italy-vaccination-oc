@@ -45,6 +45,7 @@ def pick_scenario(setup, scn_id):
     permuted_specs = [dict(zip(keys, v)) for v in itertools.product(*values)]
 
     scn_spec = permuted_specs[scn_id]
+    print(len(permuted_specs))
 
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
