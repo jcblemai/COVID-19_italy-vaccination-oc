@@ -40,7 +40,7 @@ def pick_scenario(setup, scn_id):
             'vaccpermonthM': [1, 2.5, 7.5],
             'epicourse': ['U', 'L']  # 'U'
         }
-    if setup.nnodes == 10:
+    elif setup.nnodes == 10:
         scenarios_specs = {
             'vacctotalM': [.5, 1, 1.5],
             'vaccpermonthM': [1],
@@ -53,8 +53,8 @@ def pick_scenario(setup, scn_id):
 
     scn_spec = permuted_specs[scn_id]
     # check if the scenario is useless:
-    if scn_spec['vaccpermonthM']*setup.ndays/30 < scn_spec['vacctotalM']:
-        raise ValueError("Scenario is useless")
+    #if scn_spec['vaccpermonthM']*setup.ndays/30 < scn_spec['vacctotalM']:
+    #    raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",

@@ -8,7 +8,7 @@
 
 N=${SLURM_ARRAY_TASK_ID}
 
-export MDL_DAYS=90
+export MDL_DAYS=120
 export F_PREFIX="rk5"
 
 module purge
