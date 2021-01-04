@@ -59,7 +59,22 @@ class ItalySetup:
         self.pos_node[:, 0] = self.shp.centroid.x
         self.pos_node[:, 1] = self.shp.centroid.y
 
+        # Load age stratified data:
+        agestrat = pd.read_csv('italy-data/province_age_data.csv', header=1)
+        agestrat['Totale'] = agestrat['Totale Maschi'] + agestrat['Totale Femmine']
+        agestrat = agestrat[agestrat['Età'] != 'Totale']
+        agestrat['Category'] = ''
+        agestrat.loc[agestrat['Età'].astype(int) < 16, 'Category'] = '0-16'
+        agestrat.loc[agestrat['Età'].astype(int) > 65, 'Category'] = '65+'
+        agestrat.loc[agestrat['Category'] == '', 'Category'] = '16-65'
+        agestrat = agestrat[['Category', 'Codice provincia', 'Totale', 'Provincia']]
+        agestrat = agestrat.groupby(['Category', 'Codice provincia', 'Provincia']).sum().reset_index().sort_values(
+            'Codice provincia').reset_index()
+        agestrat = agestrat.pivot(index='Codice provincia', columns='Category', values='Totale')
+        self.pop_node_ag = agestrat.to_numpy().shape
+
         print(f'Loaded Italy Setup with {self.nnodes} nodes.')
+
 
 
 if __name__ == '__main__':
