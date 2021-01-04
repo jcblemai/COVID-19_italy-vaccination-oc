@@ -7,16 +7,23 @@ import pandas as pd
 from tqdm import tqdm
 from timeit import default_timer as timer
 
-#if "Agg" not in mpl.get_backend():
+# if "Agg" not in mpl.get_backend():
 #    mpl.interactive(True)
-#plt.ion()
+# plt.ion()
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 mob_scaling = 1e7
+nc = 3  # Number of age classes
+ages_names = ['Y', 'M', 'O']
+
 
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
-    S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
+    S, E, P, I, A, Q, H, R, \
+    V, AG_1_S, AG_1_E, AG_1_P, AG_1_I, AG_1_A, AG_1_Q, AG_1_H, \
+    AG_1_R, AG_1_V, AG_2_S, AG_2_E, AG_2_P, AG_2_I, AG_2_A, AG_2_Q, \
+    AG_2_H, AG_2_R, AG_2_V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], \
+                             x[14], x[15], x[16], x[17], x[18], x[19], x[20], x[21], x[22], x[23], x[24], x[25], x[26]
 
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
@@ -29,7 +36,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
 
     # v = u[0]
     foi = mob / mob_scaling + foi_ii
-    rhs = [None] * nx
+    rhs = [0] * nx * nc
     vaccrate = 0
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
     rhs[1] = foi * S - deltaE * E  # E
@@ -178,11 +185,20 @@ class COVIDAgeStructuredOCP:
 
         dt = (N + 1) / N / n_int_steps
 
-        states = cat.struct_symSX(states_names)
-        [S, E, P, I, A, Q, H, R, V] = states[...]
+        statesin = cat.struct_symSX(states_names)
+        # [S, E, P, I, A, Q, H, R, V] = states[...]
 
-        controls = cat.struct_symSX(['v', 'mob'])
-        [v, mob] = controls[...]
+        states = cat.struct_symSX([
+            cat.entry("Y", struct=statesin),
+            cat.entry("M", struct=statesin),
+            cat.entry("O", struct=statesin)]
+        )
+
+        # controls = cat.struct_symSX(['v', 'mob'])
+        # [_, mob] = controls[...]
+
+        controls = cat.struct_symSX(['vY', 'vM', 'vO', 'mob'])
+        [vY, vM, vO, mob] = controls[...]
 
         covar = cat.struct_symSX(['mobility_t', 'betaratio_t'])
         [mobility_t, betaratio_t] = covar[...]
@@ -222,13 +238,17 @@ class COVIDAgeStructuredOCP:
             rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX, p_foiSX],
                                    [x_next, ell_next])
 
-
+        # x_ = states.cat
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
-        VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
-        vaccrate = controls['v'] / (VacPpl + 1e-10)
-        x_[0] -= vaccrate * states['S']
-        x_[8] += vaccrate * states['S']
+        for ag_id, ag in enumerate(ages_names):
+            VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[f'{ag}', 'R']
+
+            vaccrate = controls[f'v{ag}'] / (VacPpl + 1e-10)
+
+            x_[0 + nx * ag_id] -= vaccrate * states[f'{ag}', 'S']
+            x_[8 + nx * ag_id] += vaccrate * states[f'{ag}', 'S']
+
         ell = 0.
         for k in range(n_int_steps):
             x_, ell_ = rk4_step(x_, u_, covar, params, pop_nodeSX, p_foiSX)
@@ -237,12 +257,9 @@ class COVIDAgeStructuredOCP:
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX, p_foiSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
 
-        #cat.dotdraw(x_, figsize=(10, 10))
-
-        # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
-                          [scale_ell * ell + scale_v * v * v, scale_ell * ell,
-                           scale_v * v * v])  # Very dependent on regularization factor
+                          [scale_ell * ell + scale_v * vO * vO + scale_v * vM * vM + scale_v * vY * vY, scale_ell * ell,
+                           scale_v * vO * vO + scale_v * vM * vM + scale_v * vY * vY])  # Very dependent on regularization factor
 
         self.Vars = cat.struct_symMX([
             (
@@ -272,22 +289,40 @@ class COVIDAgeStructuredOCP:
             np.fill_diagonal(C, np.zeros_like(C.diagonal()))
 
             # Should this be k+1 ? to have the foi mobility.
-            Sk, Ek, Pk, Rk, Ak, Ik, Vk = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
-                                         ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
-                                         ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I']), \
-                                         ca.veccat(*self.Vars['x', :, k, 'V'])
+            Sk, Ek, Pk, Rk, Ak, Ik, Vk = [ca.veccat(*self.Vars['x', :, k, ag, 'S']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'E']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'P']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'R']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'A']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'I']) for ag in ages_names], \
+            [ca.veccat(*self.Vars['x', :, k, ag, 'V']) for ag in ages_names]
+
+
+            beta = {'Y':1.1, 'M':1.1,'O':0.8}
 
             foi_sup = []
             foi_inf = []
             for n in range(M):
+                Aksum, Pksum = 0,0
+                for ag_id, ag in enumerate(ages_names):
+                    Aksum += beta[ag] * Ak[ag_id][n]
+                    Pksum += beta[ag] * Pk[ag_id][n]
                 foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
-                        Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
-                foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n] + Vk[n])
+                        Pksum + parameters.params_structural['epsilonA'] * Aksum))
+                nfoi_inf = 0
+                for ag_id, ag in enumerate(ages_names):
+                    nfoi_inf += Sk[ag_id][n] + Ek[ag_id][n] + Pk[ag_id][n] + Rk[ag_id][n] + Ak[ag_id][n] + Vk[ag_id][n]
+                foi_inf.append(nfoi_inf)
+
             foi = []
             for m in range(M):
+                Iksum, IksumVanilla = 0,0
+                for ag_id, ag in enumerate(ages_names):
+                    Iksum += beta[ag] * Ik[ag_id][n]
+                    IksumVanilla += Ik[ag_id][n]
                 foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
-                            parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
-                           (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m] + 1e-10))
+                            parameters.params_structural['betaP0'] * betaR[m] * Iksum) /
+                           (sum(C[l, m] * foi_inf[l] for l in range(M)) + IksumVanilla + 1e-10))
             dyn[k] = []
             spatial[k] = []
             Sgeq0[k] = []
@@ -313,20 +348,19 @@ class COVIDAgeStructuredOCP:
                 reg += reg_ik
                 mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
-
                 # spatial, vaccines and dyn are put in g(x),
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
-                VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S', 'E', 'P', 'A', 'R'])
-                #Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
-                Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
+                VacPpl = sum(self.Vars['x', i, k, ag, comp] for ag in ages_names for comp in ['S', 'E', 'P', 'A', 'R'])
+                # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
+                Sgeq0[k].append(VacPpl - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines += self.Vars['u', i, k, 'v'] * (N + 1) / N
+                vaccines += sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names) * (N + 1) / N
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
-        #cat.dotdraw(mob_ik, figsize=(10, 10))
+        # cat.dotdraw(mob_ik, figsize=(10, 10))
         print('-----> Writing constraints, ...', end='')
         self.g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
@@ -359,7 +393,7 @@ class COVIDAgeStructuredOCP:
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
-        #options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
+        # options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
