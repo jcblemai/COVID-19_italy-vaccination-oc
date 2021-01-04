@@ -182,7 +182,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     return results, y, yell, mob
 
 
-class COVIDAgeStructuredOCP:
+class COVIDVaccinationOCP:
     def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True):
         timer_start = timer()
         self.N = N
