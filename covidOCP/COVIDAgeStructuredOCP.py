@@ -17,13 +17,17 @@ mob_scaling = 1e7
 nc = 3  # Number of age classes
 ages_names = ['Y', 'M', 'O']
 
+beta = {'Y':1.1, 'M':1.1,'O':0.8}
+death = {'Y':.1, 'M':1,'O':8}
+
 
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
-    S, E, P, I, A, Q, H, R, \
-    V, AG_1_S, AG_1_E, AG_1_P, AG_1_I, AG_1_A, AG_1_Q, AG_1_H, \
-    AG_1_R, AG_1_V, AG_2_S, AG_2_E, AG_2_P, AG_2_I, AG_2_A, AG_2_Q, \
-    AG_2_H, AG_2_R, AG_2_V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], x[11], x[12], x[13], \
-                             x[14], x[15], x[16], x[17], x[18], x[19], x[20], x[21], x[22], x[23], x[24], x[25], x[26]
+    S, E, P, I, A, Q, H, R, V = np.arange(nx)
+
+    S, E, P, I, A, Q, H, R, V = [x[i*nx+S] for i in range(nc)], [x[i*nx+E] for i in range(nc)], [x[i*nx+P] for i in range(nc)],\
+    [x[i * nx + I] for i in range(nc)], [x[i * nx + A] for i in range(nc)], [x[i * nx + Q] for i in range(nc)], \
+    [x[i * nx + H] for i in range(nc)], [x[i * nx + R] for i in range(nc)], [x[i * nx + V] for i in range(nc)]
+
 
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
@@ -31,27 +35,33 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
 
     Cii, betaP0, betaR, epsilonA, epsilonI = p_foi[0], p_foi[1], p_foi[2], p_foi[3], p_foi[4]
 
-    foi_ii = Cii * ((Cii * (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) / (
-            Cii * (S + E + P + R + A + V) + I + 1e-10))
+    Asum, Psum, Isum = 0, 0, 0
+    for ag_id, ag in enumerate(ages_names):
+        Asum += beta[ag] * A[ag_id]
+        Psum += beta[ag] * P[ag_id]
+        Isum += beta[ag] * I[ag_id]
+
+    foi_ii = Cii * ((Cii * (betaP0 * betaR * (Psum + epsilonA * Asum)) + epsilonI * betaP0 * betaR * Isum) / (
+            Cii * (sum(S + E + P + R + A + V)) + sum(I) + 1e-10))
+    foi = mob / mob_scaling + foi_ii
+    rhs = [None] * nx * nc
+    rhs_ell = [None] * 2
 
     # v = u[0]
-    foi = mob / mob_scaling + foi_ii
-    rhs = [0] * nx * nc
-    vaccrate = 0
-    rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
-    rhs[1] = foi * S - deltaE * E  # E
-    rhs[2] = deltaE * E - deltaP * P  # P
-    rhs[3] = sigma * deltaP * P - (eta + gammaI + alphaI) * I  # I
-    rhs[4] = (1 - sigma) * deltaP * P - gammaA * A  # A
-    rhs[5] = zeta * eta * I - gammaQ * Q  # Q
-    rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
-    rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
-    rhs[8] = vaccrate * S - gammaV * V  # V
+    for ag_id, ag in enumerate(ages_names):
+        vaccrate = 0
+        rhs[0+nx*ag_id] = -(foi + vaccrate) * S[ag_id] + gammaV * V[ag_id]  # S
+        rhs[1+nx*ag_id] = foi * S[ag_id] - deltaE * E[ag_id]  # E
+        rhs[2+nx*ag_id] = deltaE * E[ag_id] - deltaP * P[ag_id]  # P
+        rhs[3+nx*ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI + alphaI) * I[ag_id]  # I
+        rhs[4+nx*ag_id] = (1 - sigma) * deltaP * P[ag_id] - gammaA * A[ag_id]  # A
+        rhs[5+nx*ag_id] = zeta * eta * I[ag_id] - gammaQ * Q[ag_id]  # Q
+        rhs[6+nx*ag_id] = (1 - zeta) * eta * I[ag_id] - (gammaH + alphaH) * H[ag_id]  # H
+        rhs[7+nx*ag_id] = gammaI * I[ag_id] + gammaA * A[ag_id] + gammaH * H[ag_id] + gammaQ * Q[ag_id]  # R
+        rhs[8+nx*ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
 
-    rhs_ell = [None] * 3
-    rhs_ell[0] = gammaH * H  # recovered from the hospital
-    rhs_ell[1] = alphaH * H  # total death
-    rhs_ell[2] = (1 - zeta) * eta * I  # cumulative hospitalized cases
+    rhs_ell[0] = sum(alphaH * death[ag] * H[agid] for agid, ag in enumerate(ages_names))  # total death
+    rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))  # infection
 
     return rhs, rhs_ell
 
@@ -217,7 +227,7 @@ class COVIDAgeStructuredOCP:
         rhs_ell = ca.veccat(*rhs_ell)  # mod
 
         frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX, p_foiSX],
-                           [rhs, rhs_ell[1]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
+                           [rhs, rhs_ell[0]])  # CHANGE HERE FOR DEATH -> INFECTION
 
         # ---- dynamic constraints --------
         if integ == 'rk4':
@@ -298,7 +308,7 @@ class COVIDAgeStructuredOCP:
             [ca.veccat(*self.Vars['x', :, k, ag, 'V']) for ag in ages_names]
 
 
-            beta = {'Y':1.1, 'M':1.1,'O':0.8}
+
 
             foi_sup = []
             foi_inf = []
