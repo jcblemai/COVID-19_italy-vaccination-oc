@@ -71,7 +71,7 @@ class ItalySetup:
         agestrat = agestrat.groupby(['Category', 'Codice provincia', 'Provincia']).sum().reset_index().sort_values(
             'Codice provincia').reset_index()
         agestrat = agestrat.pivot(index='Codice provincia', columns='Category', values='Totale')
-        self.pop_node_ag = agestrat.to_numpy().shape
+        self.pop_node_ag = agestrat.to_numpy()
 
         print(f'Loaded Italy Setup with {self.nnodes} nodes.')
 

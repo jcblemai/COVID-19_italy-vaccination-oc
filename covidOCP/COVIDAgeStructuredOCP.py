@@ -99,13 +99,14 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
     S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
-    y = np.zeros((M, N + 1, nx))
+    y = np.zeros((M, N + 1, nc, nx))
     yell = np.zeros((M, N + 1))
     mob = np.zeros((M, N + 1))
 
     for cp, name in enumerate(states_names):
         for i in range(M):
-            y[i, 0, cp] = parameters.x0[i * nx + cp]
+
+            y[i, 0, nc, cp] = parameters.x0[i * nx + cp, nc]
 
     print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
@@ -116,11 +117,41 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
         C_foi = np.copy(C.diagonal())
         np.fill_diagonal(C, np.zeros_like(C.diagonal()))
         # plt.spy(C)
-        Sk, Ek, Pk, Rk, Ak, Ik, Vk = y[:, k, S], y[:, k, E], y[:, k, P], y[:, k, R], y[:, k, A], y[:, k, I], y[:, k, V]
+        Sk, Ek, Pk, Rk, Ak, Ik, Vk = [y[:, k, S + i*nx] for i in range(nc)], [y[:, k, E + i*nx] for i in range(nc)], \
+                                     [y[:, k, P + i*nx] for i in range(nc)], [y[:, k, R + i*nx] for i in range(nc)], \
+                                     [y[:, k, A + i*nx] for i in range(nc)], [y[:, k, I + i*nx] for i in range(nc)], \
+                                     [y[:, k, V + i*nx] for i in range(nc)]
 
         foi_sup = []
         foi_inf = []
         for n in range(M):
+            Aksum, Pksum = 0, 0
+            for ag_id, ag in enumerate(ages_names):
+                Aksum += beta[ag] * Ak[ag_id][n]
+                Pksum += beta[ag] * Pk[ag_id][n]
+            foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
+                    Pksum + parameters.params_structural['epsilonA'] * Aksum))
+            nfoi_inf = 0
+            for ag_id, ag in enumerate(ages_names):
+                nfoi_inf += Sk[ag_id][n] + Ek[ag_id][n] + Pk[ag_id][n] + Rk[ag_id][n] + Ak[ag_id][n] + Vk[ag_id][n]
+            foi_inf.append(nfoi_inf)
+
+        foi = []
+        for m in range(M):
+            Iksum, IksumVanilla = 0, 0
+            for ag_id, ag in enumerate(ages_names):
+                Iksum += beta[ag] * Ik[ag_id][n]
+                IksumVanilla += Ik[ag_id][n]
+            foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
+                        parameters.params_structural['betaP0'] * betaR[m] * Iksum) /
+                       (sum(C[l, m] * foi_inf[l] for l in range(M)) + IksumVanilla + 1e-10))
+
+        # OLD
+        for n in range(M):
+            Aksum, Pksum = 0, 0
+            for ag_id, ag in enumerate(ages_names):
+                Aksum += beta[ag] * Ak[ag_id][n]
+                Pksum += beta[ag] * Pk[ag_id][n]
             foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
                     Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
             foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n] + Vk[n])
@@ -307,9 +338,6 @@ class COVIDVaccinationOCP:
             [ca.veccat(*self.Vars['x', :, k, ag, 'I']) for ag in ages_names], \
             [ca.veccat(*self.Vars['x', :, k, ag, 'V']) for ag in ages_names]
 
-
-
-
             foi_sup = []
             foi_inf = []
             for n in range(M):
@@ -446,7 +474,7 @@ class COVIDVaccinationOCP:
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):
             for i in range(self.M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i * nx + cp]
+                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0_ag[i, cp]
 
         # ----> Starting value of the optimizer
         init = self.Vars(0)

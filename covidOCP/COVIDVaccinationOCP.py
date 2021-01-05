@@ -221,7 +221,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
     for cp, name in enumerate(states_names):
         for i in range(M):
-            y[i, 0, cp] = parameters.x0[i * nx + cp]
+            y[i, 0, cp] = parameters.x0[i, cp]
 
     print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
@@ -535,7 +535,7 @@ class COVIDVaccinationOCP:
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):
             for i in range(self.M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i * nx + cp]
+                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i, cp]
 
         # ----> Starting value of the optimizer
         init = self.Vars(0)

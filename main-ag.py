@@ -17,16 +17,15 @@ when = 'future'
 optimize = True
 n_int_steps = 5
 ocp = None
-nc = 1
 
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
-@click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
+@click.option("-a", "--age_struct", "age_struct", type=bool, default=True, show_default=True,
               help="Whether to use agestructured OCP")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='',
               show_default=True, help="file prefix to add to identify the current set of runs.")
@@ -62,7 +61,6 @@ if __name__ == '__main__':
     if age_struct:
         COVIDOCP = COVIDAgeStructuredOCP
         file_prefix = file_prefix + 'ag'
-        nc = 3
     else:
         COVIDOCP = COVIDVaccinationOCP
 
@@ -80,9 +78,9 @@ if __name__ == '__main__':
 
         p.apply_epicourse(setup, scenario['beta_mult'])
 
-        control_initial = np.zeros((M, N))
-        max_vacc_rate = np.zeros((M, N))
-        initial = np.zeros((M, N + 1, nx))
+        control_initial = np.zeros((M, N, 3))
+        max_vacc_rate = np.zeros((M, N, 3))
+        initial = np.zeros((M, N + 1, nx*3))
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,

@@ -99,6 +99,10 @@ class OCParameters:
                                             index=setup.model_days)
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
+    def update_to_ag(self, setup):
+        self.x0 = 0
+
+
 
 def get_parameters_from_matlab(eng, s, model_size, model_days):
     p = {}  # 1D parameters
@@ -120,10 +124,10 @@ def get_parameters_from_matlab(eng, s, model_size, model_days):
     p['epsilonI'] = eng.eval('epsilonA')
     p['gammaV'] = 1 / (9 * 30)
     x0_matlab = np.array(eng.eval('V.x0')).flatten()
-    x0 = np.zeros(9 * s.nnodes)
+    x0 = np.zeros((s.nnodes, nx))
     S, E, P, I, A, Q, H, R, V = np.arange(nx)
     for i in range(s.nnodes):
-        x0[i * nx:(i + 1) * nx] = [x0_matlab[107 * S + i],
+        x0[i, :] = [x0_matlab[107 * S + i],
                                    x0_matlab[107 * E + i],
                                    x0_matlab[107 * P + i],
                                    x0_matlab[107 * I + i],
