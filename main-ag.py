@@ -22,7 +22,7 @@ ocp = None
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-t", "--ndays", "ndays", default=30, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=True, show_default=True,
@@ -77,6 +77,7 @@ if __name__ == '__main__':
 
         control_initial = np.zeros((M, N, nc))
         max_vacc_rate = np.zeros((M, N))
+        vacc_total = 1e7
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,
@@ -86,14 +87,15 @@ if __name__ == '__main__':
                                                                method='rk4',
                                                                n_rk4_steps=n_int_steps)
 
-        if optimize and ocp is None:
-            ocp = COVIDOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
-                                               setup=setup, parameters=p,
-                                               show_steps=False)
-
+        max_vacc_rate, vacc_total, control_initial_all = build_scenario(setup, scenario)
         control_initial = np.zeros((M, N, nc))
-        max_vacc_rate = np.zeros((M, N))
-        vacc_total = 1e7
+        for k in range(N):
+            for nd in range(M):
+                for ag_id in range(nc):
+                    control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 3
+
+        vacc_total = 500000
+
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,
@@ -101,13 +103,17 @@ if __name__ == '__main__':
                                                                controls=control_initial,
                                                                save_to=f'{outdir}{prefix}-int{nnodes}',
                                                                n_rk4_steps=n_int_steps)
-        if optimize:
-            ocp.update(parameters=p,
-                       max_total_vacc=vacc_total,
-                       max_vacc_rate=max_vacc_rate,
-                       states_initial=state_initial,
-                       control_initial=control_initial,
-                       mob_initial=mob,
-                       scenario_name=f'{outdir}{prefix}-opt{nnodes}')
 
-            ocp.solveOCP()
+        ocp = COVIDOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
+                                           setup=setup, parameters=p,
+                                           show_steps=False)
+
+        ocp.update(parameters=p,
+                   max_total_vacc=vacc_total,
+                   max_vacc_rate=max_vacc_rate,
+                   states_initial=state_initial,
+                   control_initial=control_initial,
+                   mob_initial=mob,
+                   scenario_name=f'{outdir}{prefix}-opt{nnodes}')
+
+        ocp.solveOCP()

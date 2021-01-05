@@ -97,8 +97,8 @@ if __name__ == '__main__':
                                                setup=setup, parameters=p,
                                                show_steps=False)
 
-        #max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
-        vacc_total = 10000
+        max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
+
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,

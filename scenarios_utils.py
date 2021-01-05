@@ -12,7 +12,7 @@ def pick_scenario(setup, scn_id):
         }
     elif setup.nnodes == 10:
         scenarios_specs = {
-            'vacctotalM': [.5, 1, 1.5],
+            'vacctotalM': [.25, .5, 1.5],
             'vaccpermonthM': [1],
             'epicourse': ['U']  # 'U', 'L'
         }

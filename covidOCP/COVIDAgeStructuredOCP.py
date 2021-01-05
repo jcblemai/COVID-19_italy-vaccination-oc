@@ -17,8 +17,8 @@ mob_scaling = 1e7
 nc = 3  # Number of age classes
 ages_names = ['Y', 'M', 'O']
 
-ag_trans_mult = {'Y': 1, 'M': 1, 'O': 1}
-ag_death_mult = {'Y': 1, 'M': 1, 'O': 1}
+ag_trans_mult = {'Y': .9, 'M': 1.3, 'O': .4}
+ag_death_mult = {'Y': .1, 'M': .3, 'O': 3.5}
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
@@ -292,8 +292,8 @@ class COVIDVaccinationOCP:
                               ['x0', 'p'], ['xf', 'qf'])
 
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
-                          [scale_ell * ell + scale_v * vO * vO + scale_v * vM * vM + scale_v * vY * vY, scale_ell * ell,
-                           scale_v * vO * vO + scale_v * vM * vM + scale_v * vY * vY])  # Very dependent on regularization factor
+                          [scale_ell * ell + scale_v * (vO * vO + vM * vM + vY * vY), scale_ell * ell,
+                           scale_v * (vO * vO + vM * vM + vY * vY)])  # Very dependent on regularization factor
 
         self.Vars = cat.struct_symMX([
             (
