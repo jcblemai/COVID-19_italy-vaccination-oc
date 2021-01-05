@@ -230,8 +230,8 @@ class COVIDVaccinationOCP:
         # controls = cat.struct_symSX(['v', 'mob'])
         # [_, mob] = controls[...]
 
-        controls = cat.struct_symSX(['vY', 'vM', 'vO', 'mob'])
-        [vY, vM, vO, mob] = controls[...]
+        controls = cat.struct_symSX(['vAll', 'vY', 'vM', 'vO', 'mob'])
+        [vAll, vY, vM, vO, mob] = controls[...]
 
         covar = cat.struct_symSX(['mobility_t', 'betaratio_t'])
         [mobility_t, betaratio_t] = covar[...]
@@ -312,6 +312,7 @@ class COVIDVaccinationOCP:
 
         dyn = [None] * N
         spatial = [None] * N
+        rate = [None] * N
         Sgeq0 = [None] * N
         print(f"===> Building OCP {M} nodes:""")
         for k in tqdm(range(N)):
@@ -356,6 +357,7 @@ class COVIDVaccinationOCP:
                            (sum(C[l, m] * foi_inf[l] for l in range(M)) + IksumVanilla + 1e-10))
             dyn[k] = []
             spatial[k] = []
+            rate[k] = []
             Sgeq0[k] = []
             for i in range(M):
                 p_foi = ca.veccat(C_foi[i], parameters.params_structural['betaP0'], betaR[i],
@@ -383,6 +385,7 @@ class COVIDVaccinationOCP:
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
+                rate[k].append(self.Vars['u', i, k, 'vAll'] - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 VacPpl = sum(self.Vars['x', i, k, ag, comp] for ag in ages_names for comp in ['S', 'E', 'P', 'A', 'R'])
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
@@ -396,6 +399,7 @@ class COVIDVaccinationOCP:
         self.g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
             cat.entry("spatial", expr=spatial),
+            cat.entry("rate", expr=rate),
             cat.entry("vaccines", expr=vaccines),
             cat.entry("Sgeq0", expr=Sgeq0)
         ])
@@ -426,11 +430,7 @@ class COVIDVaccinationOCP:
         # options['ipopt']["print_level"] = 12
         # options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
-        if show_steps:
-            self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,
-                                         N, self.Vars,
-                                         setup.ind2name, parameters.mobmat_pr, setup.pos_node, setup.pop_node)
-            options["iteration_callback"] = self.callback
+
         self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
         print(f'DONE in {timer() - tsbs:.1f} s')
 
@@ -459,26 +459,30 @@ class COVIDVaccinationOCP:
 
         ubg['Sgeq0'] = np.inf
 
-        lbx['u', :, :, 'v'] = 0.
+
         for k in range(self.N):
             for nd in range(self.M):
-                ubx['u', nd, k, 'v'] = max_vacc_rate[nd, k]
+                ubx['u', nd, k, 'vAll'] = max_vacc_rate[nd, k]
+                lbx['u', nd, k] = [0., 0., 0., 0., 0.]
 
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):
             for i in range(self.M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0_ag[i, cp]
+                for ag_id, ag in enumerate(ages_names):
+                    lbx['x', i, 0, ag, name] = ubx['x', i, 0, ag, name] = parameters.x0_ag[i, ag_id, cp]
 
         # ----> Starting value of the optimizer
         init = self.Vars(0)
         for i, name in enumerate(states_names):
             for k in range(self.N + 1):
                 for nd in range(self.M):
-                    init['x', nd, k, name] = states_initial[nd, k, i]
+                    for ag_id, ag in enumerate(ages_names):
+                        init['x', nd, k, ag, name] = states_initial[nd, k, ag_id, i]
 
         for k in range(self.N):
             for nd in range(self.M):
-                init['u', nd, k, 'v'] = control_initial[nd, k]
+                for ag_id, ag in enumerate(ages_names):
+                    init['u', nd, k, f'v{ag}'] = control_initial[nd, k, ag_id]
                 init['u', nd, k, 'mob'] = mob_initial[nd, k]
 
         self.arg = {'lbg': lbg,
