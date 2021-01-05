@@ -5,6 +5,7 @@ import datetime
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
+nc = 3
 
 
 class OCParameters:
@@ -70,6 +71,8 @@ class OCParameters:
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
         self.betaratiointime_baseline = self.betaratiointime_arr[:, 0]
 
+        self.x0_ag = self.update_to_ag(setup)
+
     def prune_mobility(self, setup, mob_prun=0.0006):
         mobK = setup.mobintime.to_numpy().T[:, 0]
         C = self.params_structural['r'] * self.mobfrac.flatten() * mobK * self.mobmat
@@ -100,7 +103,13 @@ class OCParameters:
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
     def update_to_ag(self, setup):
-        self.x0 = 0
+        x0_ag = np.zeros((setup.nnodes, nc, nx))
+        for i in range(setup.nnodes):
+            for cp in range(nx):
+                for ag in range(nc):
+                    x0_ag[i, ag, cp] = self.x0[i, cp] * setup.pop_node_ag[i, ag] / sum(setup.pop_node_ag[i])
+
+        return x0_ag
 
 
 

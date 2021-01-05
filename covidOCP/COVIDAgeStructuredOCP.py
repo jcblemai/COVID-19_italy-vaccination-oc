@@ -17,17 +17,22 @@ mob_scaling = 1e7
 nc = 3  # Number of age classes
 ages_names = ['Y', 'M', 'O']
 
-beta = {'Y':1.1, 'M':1.1,'O':0.8}
-death = {'Y':.1, 'M':1,'O':8}
+beta = {'Y': 1.1, 'M': 1.1, 'O': 0.8}
+death = {'Y': .1, 'M': 1, 'O': 8}
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
-    S, E, P, I, A, Q, H, R, V = [x[i*nx+S] for i in range(nc)], [x[i*nx+E] for i in range(nc)], [x[i*nx+P] for i in range(nc)],\
-    [x[i * nx + I] for i in range(nc)], [x[i * nx + A] for i in range(nc)], [x[i * nx + Q] for i in range(nc)], \
-    [x[i * nx + H] for i in range(nc)], [x[i * nx + R] for i in range(nc)], [x[i * nx + V] for i in range(nc)]
-
+    S, E, P, I, A, Q, H, R, V = [x[i * nx + S] for i in range(nc)], [x[i * nx + E] for i in range(nc)], [x[i * nx + P]
+                                                                                                         for i in
+                                                                                                         range(nc)], \
+                                [x[i * nx + I] for i in range(nc)], [x[i * nx + A] for i in range(nc)], [x[i * nx + Q]
+                                                                                                         for i in
+                                                                                                         range(nc)], \
+                                [x[i * nx + H] for i in range(nc)], [x[i * nx + R] for i in range(nc)], [x[i * nx + V]
+                                                                                                         for i in
+                                                                                                         range(nc)]
 
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
@@ -50,15 +55,15 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     # v = u[0]
     for ag_id, ag in enumerate(ages_names):
         vaccrate = 0
-        rhs[0+nx*ag_id] = -(foi + vaccrate) * S[ag_id] + gammaV * V[ag_id]  # S
-        rhs[1+nx*ag_id] = foi * S[ag_id] - deltaE * E[ag_id]  # E
-        rhs[2+nx*ag_id] = deltaE * E[ag_id] - deltaP * P[ag_id]  # P
-        rhs[3+nx*ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI + alphaI) * I[ag_id]  # I
-        rhs[4+nx*ag_id] = (1 - sigma) * deltaP * P[ag_id] - gammaA * A[ag_id]  # A
-        rhs[5+nx*ag_id] = zeta * eta * I[ag_id] - gammaQ * Q[ag_id]  # Q
-        rhs[6+nx*ag_id] = (1 - zeta) * eta * I[ag_id] - (gammaH + alphaH) * H[ag_id]  # H
-        rhs[7+nx*ag_id] = gammaI * I[ag_id] + gammaA * A[ag_id] + gammaH * H[ag_id] + gammaQ * Q[ag_id]  # R
-        rhs[8+nx*ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
+        rhs[0 + nx * ag_id] = -(foi + vaccrate) * S[ag_id] + gammaV * V[ag_id]  # S
+        rhs[1 + nx * ag_id] = foi * S[ag_id] - deltaE * E[ag_id]  # E
+        rhs[2 + nx * ag_id] = deltaE * E[ag_id] - deltaP * P[ag_id]  # P
+        rhs[3 + nx * ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI + alphaI) * I[ag_id]  # I
+        rhs[4 + nx * ag_id] = (1 - sigma) * deltaP * P[ag_id] - gammaA * A[ag_id]  # A
+        rhs[5 + nx * ag_id] = zeta * eta * I[ag_id] - gammaQ * Q[ag_id]  # Q
+        rhs[6 + nx * ag_id] = (1 - zeta) * eta * I[ag_id] - (gammaH + alphaH) * H[ag_id]  # H
+        rhs[7 + nx * ag_id] = gammaI * I[ag_id] + gammaA * A[ag_id] + gammaH * H[ag_id] + gammaQ * Q[ag_id]  # R
+        rhs[8 + nx * ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
 
     rhs_ell[0] = sum(alphaH * death[ag] * H[agid] for agid, ag in enumerate(ages_names))  # total death
     rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))  # infection
@@ -105,8 +110,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
     for cp, name in enumerate(states_names):
         for i in range(M):
-
-            y[i, 0, nc, cp] = parameters.x0[i * nx + cp, nc]
+            y[i, 0, :, cp] = parameters.x0_ag[i, :, cp]
 
     print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
@@ -117,10 +121,10 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
         C_foi = np.copy(C.diagonal())
         np.fill_diagonal(C, np.zeros_like(C.diagonal()))
         # plt.spy(C)
-        Sk, Ek, Pk, Rk, Ak, Ik, Vk = [y[:, k, S + i*nx] for i in range(nc)], [y[:, k, E + i*nx] for i in range(nc)], \
-                                     [y[:, k, P + i*nx] for i in range(nc)], [y[:, k, R + i*nx] for i in range(nc)], \
-                                     [y[:, k, A + i*nx] for i in range(nc)], [y[:, k, I + i*nx] for i in range(nc)], \
-                                     [y[:, k, V + i*nx] for i in range(nc)]
+        Sk, Ek, Pk, Rk, Ak, Ik, Vk = [y[:, k, i, S] for i in range(nc)], [y[:, k, i, E] for i in range(nc)], \
+                                     [y[:, k, i, P] for i in range(nc)], [y[:, k, i, R] for i in range(nc)], \
+                                     [y[:, k, i, A] for i in range(nc)], [y[:, k, i, I] for i in range(nc)], \
+                                     [y[:, k, i, V] for i in range(nc)]
 
         foi_sup = []
         foi_inf = []
@@ -146,36 +150,22 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                         parameters.params_structural['betaP0'] * betaR[m] * Iksum) /
                        (sum(C[l, m] * foi_inf[l] for l in range(M)) + IksumVanilla + 1e-10))
 
-        # OLD
-        for n in range(M):
-            Aksum, Pksum = 0, 0
-            for ag_id, ag in enumerate(ages_names):
-                Aksum += beta[ag] * Ak[ag_id][n]
-                Pksum += beta[ag] * Pk[ag_id][n]
-            foi_sup.append(parameters.params_structural['betaP0'] * betaR[n] * (
-                    Pk[n] + parameters.params_structural['epsilonA'] * Ak[n]))
-            foi_inf.append(Sk[n] + Ek[n] + Pk[n] + Rk[n] + Ak[n] + Vk[n])
-
-        foi = []
-        for m in range(M):
-            foi.append((sum(C[n, m] * foi_sup[n] for n in range(M)) + parameters.params_structural['epsilonI'] *
-                        parameters.params_structural['betaP0'] * betaR[m] * Ik[m]) /
-                       (sum(C[l, m] * foi_inf[l] for l in range(M)) + Ik[m] + 1e-15))
-
         for i in range(M):
             mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
             mob[i, k] = mob_ik
 
-            x_ = y[i, k, :]
-
-            VacPpl = Sk[i] + Ek[i] + Pk[i] + Ak[i] + Rk[i]
-            vaccrate = controls[i, k] / (VacPpl + 1e-10)
-            x_[S] -= vaccrate * Sk[i]
-            x_[V] += vaccrate * Sk[i]
+            x_ = np.copy(y[i, k])
+            for ag_id, ag in enumerate(ages_names):
+                VacPpl = Sk[ag_id][i] + Ek[ag_id][i] + Pk[ag_id][i] + Ak[ag_id][i] + Rk[ag_id][i]
+                vaccrate = controls[i, k, ag_id] / (VacPpl + 1e-10)
+                x_[ag_id][S] -= vaccrate * Sk[ag_id][i]
+                x_[ag_id][V] += vaccrate * Sk[ag_id][i]
 
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
+
+
 
             ell = 0.
             for nt in range(n_rk4_steps):
@@ -283,7 +273,8 @@ class COVIDVaccinationOCP:
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
         for ag_id, ag in enumerate(ages_names):
-            VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[f'{ag}', 'R']
+            VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[
+                f'{ag}', 'R']
 
             vaccrate = controls[f'v{ag}'] / (VacPpl + 1e-10)
 
@@ -331,17 +322,17 @@ class COVIDVaccinationOCP:
 
             # Should this be k+1 ? to have the foi mobility.
             Sk, Ek, Pk, Rk, Ak, Ik, Vk = [ca.veccat(*self.Vars['x', :, k, ag, 'S']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'E']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'P']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'R']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'A']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'I']) for ag in ages_names], \
-            [ca.veccat(*self.Vars['x', :, k, ag, 'V']) for ag in ages_names]
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'E']) for ag in ages_names], \
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'P']) for ag in ages_names], \
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'R']) for ag in ages_names], \
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'A']) for ag in ages_names], \
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'I']) for ag in ages_names], \
+                                         [ca.veccat(*self.Vars['x', :, k, ag, 'V']) for ag in ages_names]
 
             foi_sup = []
             foi_inf = []
             for n in range(M):
-                Aksum, Pksum = 0,0
+                Aksum, Pksum = 0, 0
                 for ag_id, ag in enumerate(ages_names):
                     Aksum += beta[ag] * Ak[ag_id][n]
                     Pksum += beta[ag] * Pk[ag_id][n]
@@ -354,7 +345,7 @@ class COVIDVaccinationOCP:
 
             foi = []
             for m in range(M):
-                Iksum, IksumVanilla = 0,0
+                Iksum, IksumVanilla = 0, 0
                 for ag_id, ag in enumerate(ages_names):
                     Iksum += beta[ag] * Ik[ag_id][n]
                     IksumVanilla += Ik[ag_id][n]

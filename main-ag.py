@@ -9,7 +9,7 @@ import click
 import sys, os
 from scenarios_utils import pick_scenario, build_scenario
 
-nx = 9
+nx, nc = 9, 3
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 outdir = 'model_output/'
 os.makedirs(outdir, exist_ok=True)
@@ -23,7 +23,7 @@ ocp = None
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=True, show_default=True,
               help="Whether to use agestructured OCP")
@@ -33,9 +33,6 @@ def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix):
     if not isinstance(scn_ids, list):
         scn_ids = [int(scn_ids)]
     return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix
-
-
-
 
 
 if __name__ == '__main__':
@@ -78,9 +75,8 @@ if __name__ == '__main__':
 
         p.apply_epicourse(setup, scenario['beta_mult'])
 
-        control_initial = np.zeros((M, N, 3))
-        max_vacc_rate = np.zeros((M, N, 3))
-        initial = np.zeros((M, N + 1, nx*3))
+        control_initial = np.zeros((M, N, nc))
+        max_vacc_rate = np.zeros((M, N, nc))
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,

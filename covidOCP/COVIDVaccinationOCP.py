@@ -252,7 +252,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
             mob[i, k] = mob_ik
 
-            x_ = y[i, k, :]
+            x_ = np.copy(y[i, k, :])
 
             VacPpl = Sk[i] + Ek[i] + Pk[i] + Ak[i] + Rk[i]
             vaccrate = controls[i, k] / (VacPpl + 1e-10)
