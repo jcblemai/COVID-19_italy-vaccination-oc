@@ -22,7 +22,7 @@ nc = 1
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
               help="whether to use matlab for the current run")
@@ -97,7 +97,8 @@ if __name__ == '__main__':
                                                setup=setup, parameters=p,
                                                show_steps=False)
 
-        max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
+        #max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
+        vacc_total = 10000
 
         results, state_initial, yell, mob = COVIDOCP.integrate(N,
                                                                setup=setup,
