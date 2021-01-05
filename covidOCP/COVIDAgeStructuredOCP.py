@@ -522,23 +522,26 @@ class COVIDVaccinationOCP:
             self.saveOCP()
 
     def saveOCP(self):
-        results = pd.DataFrame(columns=['date', 'comp', 'place', 'value'])
+        results = pd.DataFrame(columns=['date', 'comp', 'place', 'cat', 'value', 'placeID'])
 
         for nd in range(self.M):
-            results = pd.concat(
-                [results, pd.DataFrame.from_dict(
-                    {'value': np.array(
-                        ca.veccat(ca.veccat(*self.opt['u', nd, :, 'v']), self.opt['u', nd, -1, 'v'])).ravel(),
-                     'date': self.setup.model_days,
-                     'place': self.setup.ind2name[nd],
-                     'placeID': int(nd),
-                     'comp': 'vacc'})])
-            for i, st in enumerate(states_names):
+            for ag_id, ag in enumerate(ages_names):
                 results = pd.concat(
-                    [results, pd.DataFrame.from_dict({'value': np.array(ca.veccat(*self.opt['x', nd, :, st])).ravel(),
-                                                      'date': self.setup.model_days,
-                                                      'place': self.setup.ind2name[nd],
-                                                      'placeID': int(nd),
-                                                      'comp': st})])
+                    [results, pd.DataFrame.from_dict(
+                        {'value': np.array(
+                            ca.veccat(ca.veccat(*self.opt['u', nd, :, f'v{ag}']), self.opt['u', nd, -1, f'v{ag}'])).ravel(),
+                         'date': self.setup.model_days,
+                         'place': self.setup.ind2name[nd],
+                         'cat': ages_names[ag_id],
+                         'placeID': int(nd),
+                         'comp': 'vacc'})])
+                for i, st in enumerate(states_names):
+                    results = pd.concat(
+                        [results, pd.DataFrame.from_dict({'value': np.array(ca.veccat(*self.opt['x', nd, :, ag, st])).ravel(),
+                                                          'date': self.setup.model_days,
+                                                          'place': self.setup.ind2name[nd],
+                                                          'cat': ages_names[ag_id],
+                                                          'placeID': int(nd),
+                                                          'comp': st})])
         results['placeID'] = results['placeID'].astype(int)
         results.to_csv(f'{self.scenario_name}.csv', index=False)
