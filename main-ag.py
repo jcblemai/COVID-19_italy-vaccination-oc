@@ -17,6 +17,7 @@ when = 'future'
 optimize = True
 n_int_steps = 5
 ocp = None
+obj = 'infection'
 
 
 @click.command()
@@ -46,6 +47,8 @@ if __name__ == '__main__':
     M = setup.nnodes
     N = setup.ndays - 1
 
+    assert(obj == 'infection' or obj == 'death')
+
     if use_matlab:
         p = COVIDParametersOCP.OCParameters(setup=setup, M=M, when=when)
         if True:
@@ -55,11 +58,7 @@ if __name__ == '__main__':
         with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
 
-    if age_struct:
-        COVIDOCP = COVIDAgeStructuredOCP
-        file_prefix = file_prefix + 'ag'
-    else:
-        COVIDOCP = COVIDVaccinationOCP
+    file_prefix = file_prefix + 'ag'
 
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)
@@ -71,21 +70,21 @@ if __name__ == '__main__':
         use_matlab: {use_matlab}
         when?  {when}
         rk_steps: {n_int_steps}
+        obj: {obj}
         ---> Saving results to prefix: {prefix}""")
 
         p.apply_epicourse(setup, scenario['beta_mult'])
 
         control_initial = np.zeros((M, N, nc))
         max_vacc_rate = np.zeros((M, N))
-        vacc_total = 1e7
 
-        results, state_initial, yell, mob = COVIDOCP.integrate(N,
-                                                               setup=setup,
-                                                               parameters=p,
-                                                               controls=control_initial,
-                                                               save_to=f'{outdir}{prefix}-int{nnodes}-nc',
-                                                               method='rk4',
-                                                               n_rk4_steps=n_int_steps)
+        results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
+                                                                            setup=setup,
+                                                                            parameters=p,
+                                                                            controls=control_initial,
+                                                                            save_to=f'{outdir}{prefix}-int{nnodes}-nc',
+                                                                            method='rk4',
+                                                                            n_rk4_steps=n_int_steps)
 
         max_vacc_rate, vacc_total, control_initial_all = build_scenario(setup, scenario)
         control_initial = np.zeros((M, N, nc))
@@ -96,17 +95,16 @@ if __name__ == '__main__':
 
         vacc_total = 500000
 
+        results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
+                                                                            setup=setup,
+                                                                            parameters=p,
+                                                                            controls=control_initial,
+                                                                            save_to=f'{outdir}{prefix}-int{nnodes}',
+                                                                            n_rk4_steps=n_int_steps)
 
-        results, state_initial, yell, mob = COVIDOCP.integrate(N,
-                                                               setup=setup,
-                                                               parameters=p,
-                                                               controls=control_initial,
-                                                               save_to=f'{outdir}{prefix}-int{nnodes}',
-                                                               n_rk4_steps=n_int_steps)
-
-        ocp = COVIDOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
-                                           setup=setup, parameters=p,
-                                           show_steps=False)
+        ocp = COVIDAgeStructuredOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
+                                                        setup=setup, parameters=p,
+                                                        objective=obj)
 
         ocp.update(parameters=p,
                    max_total_vacc=vacc_total,
@@ -114,6 +112,6 @@ if __name__ == '__main__':
                    states_initial=state_initial,
                    control_initial=control_initial,
                    mob_initial=mob,
-                   scenario_name=f'{outdir}{prefix}-opt{nnodes}')
+                   scenario_name=f'{outdir}{prefix}-{obj}opt{nnodes}')
 
         ocp.solveOCP()

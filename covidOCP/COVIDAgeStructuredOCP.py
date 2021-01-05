@@ -66,7 +66,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
         rhs[8 + nx * ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
 
     rhs_ell[0] = sum(alphaH * ag_death_mult[ag] * H[agid] for agid, ag in enumerate(ages_names))  # total death
-    rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))  # infection
+    rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))/1000  # infection
 
     return rhs, rhs_ell
 
@@ -206,13 +206,18 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
 
 class COVIDVaccinationOCP:
-    def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True):
+    def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', objective='death'):
         timer_start = timer()
         self.N = N
         self.n_int_steps = n_int_steps
         self.setup = setup
         self.parameters = parameters
         self.M = M = setup.nnodes
+
+        if objective == 'death':
+            ellID = 0
+        elif objective == 'infection':
+            ellID = 1
 
         _, pvector_names = parameters.get_pvector()
 
@@ -250,7 +255,7 @@ class COVIDVaccinationOCP:
         rhs_ell = ca.veccat(*rhs_ell)  # mod
 
         frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX, p_foiSX],
-                           [rhs, rhs_ell[0]])  # CHANGE HERE FOR DEATH -> INFECTION
+                           [rhs, rhs_ell[ellID]])  # CHANGE HERE FOR DEATH -> INFECTION
 
         # ---- dynamic constraints --------
         if integ == 'rk4':
