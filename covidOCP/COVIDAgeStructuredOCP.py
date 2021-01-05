@@ -165,8 +165,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
 
-
-
+            x_ = x_.reshape(nx*nc)
             ell = 0.
             for nt in range(n_rk4_steps):
                 if method == 'rk4':
@@ -175,26 +174,29 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                     x_, ell_ = euler_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
             ell += ell_
 
-            y[i, k + 1, :] = x_
+            y[i, k + 1] = x_.reshape((nc, nx))
             yell[i, k + 1] = ell
 
-    results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
+    results = pd.DataFrame(columns=['date', 'comp', 'place', 'cat', 'value', 'placeID'])
 
     for nd in range(M):
-        results = pd.concat(
-            [results, pd.DataFrame.from_dict(
-                {'value': np.append(controls[nd, :], controls[nd, -1]).ravel(),
-                 'date': setup.model_days,
-                 'place': setup.ind2name[nd],
-                 'placeID': int(nd),
-                 'comp': 'vacc'})])
-        for i, st in enumerate(states_names):
+        for ag_id, ag in enumerate(ages_names):
             results = pd.concat(
-                [results, pd.DataFrame.from_dict({'value': y[nd, :, i].ravel(),
-                                                  'date': setup.model_days,
-                                                  'place': setup.ind2name[nd],
-                                                  'placeID': int(nd),
-                                                  'comp': st})])
+                [results, pd.DataFrame.from_dict(
+                    {'value': np.append(controls[nd, :, ag_id], controls[nd, -1, ag_id]).ravel(),
+                     'date': setup.model_days,
+                     'place': setup.ind2name[nd],
+                     'cat':ages_names[ag_id],
+                     'placeID': int(nd),
+                     'comp': 'vacc'})])
+            for i, st in enumerate(states_names):
+                results = pd.concat(
+                    [results, pd.DataFrame.from_dict({'value': y[nd, :, ag_id, i].ravel(),
+                                                      'date': setup.model_days,
+                                                      'place': setup.ind2name[nd],
+                                                      'cat': ages_names[ag_id],
+                                                      'placeID': int(nd),
+                                                      'comp': st})])
     results['placeID'] = results['placeID'].astype(int)
 
     if save_to is not None:
