@@ -36,9 +36,6 @@ def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix):
     return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix
 
 
-
-
-
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
@@ -59,13 +56,6 @@ if __name__ == '__main__':
         with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
 
-    if age_struct:
-        COVIDOCP = COVIDAgeStructuredOCP
-        file_prefix = file_prefix + 'ag'
-        nc = 3
-    else:
-        COVIDOCP = COVIDVaccinationOCP
-
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)
         prefix = file_prefix + scenario['name']
@@ -84,28 +74,30 @@ if __name__ == '__main__':
         max_vacc_rate = np.zeros((M, N))
         initial = np.zeros((M, N + 1, nx))
 
-        results, state_initial, yell, mob = COVIDOCP.integrate(N,
-                                                               setup=setup,
-                                                               parameters=p,
-                                                               controls=control_initial,
-                                                               save_to=f'{outdir}{prefix}-int{nnodes}-nc',
-                                                               method='rk4',
-                                                               n_rk4_steps=n_int_steps)
+        results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+                                                                          setup=setup,
+                                                                          parameters=p,
+                                                                          controls=control_initial,
+                                                                          save_to=f'{outdir}{prefix}-int{nnodes}-nc',
+                                                                          method='rk4',
+                                                                          n_rk4_steps=n_int_steps)
 
         if optimize and ocp is None:
-            ocp = COVIDOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
-                                               setup=setup, parameters=p,
-                                               show_steps=False)
+            ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
+                                                          setup=setup, parameters=p,
+                                                          show_steps=False)
 
         max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
+        vacc_total = np.ones(N)*500
+        vacc_total[30:40] = 0
 
 
-        results, state_initial, yell, mob = COVIDOCP.integrate(N,
-                                                               setup=setup,
-                                                               parameters=p,
-                                                               controls=control_initial,
-                                                               save_to=f'{outdir}{prefix}-int{nnodes}',
-                                                               n_rk4_steps=n_int_steps)
+        results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+                                                                          setup=setup,
+                                                                          parameters=p,
+                                                                          controls=control_initial,
+                                                                          save_to=f'{outdir}{prefix}-int{nnodes}',
+                                                                          n_rk4_steps=n_int_steps)
         if optimize:
             ocp.update(parameters=p,
                        max_total_vacc=vacc_total,

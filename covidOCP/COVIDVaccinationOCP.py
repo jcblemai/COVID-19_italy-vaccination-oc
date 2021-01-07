@@ -390,11 +390,12 @@ class COVIDVaccinationOCP:
             ),
         ])
 
-        f = vaccines = cases = reg = cdot_T = 0
+        f = cases = reg = cdot_T = 0
 
         dyn = [None] * N
         spatial = [None] * N
         Sgeq0 = [None] * N
+        vaccines = [0] * N
         print(f"===> Building OCP {M} nodes:""")
         for k in tqdm(range(N)):
             mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
@@ -455,7 +456,7 @@ class COVIDVaccinationOCP:
                 #Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines += self.Vars['u', i, k, 'v'] * (N + 1) / N
+                vaccines[k] = vaccines[k] +  self.Vars['u', i, k, 'v'] * (N + 1) / N
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
@@ -522,8 +523,15 @@ class COVIDVaccinationOCP:
         lbx = self.Vars(-np.inf)
         ubx = self.Vars(np.inf)
 
-        ubg['vaccines'] = max_total_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
-        lbg['vaccines'] = -np.inf
+        if isinstance(max_total_vacc, (int, float, complex)):
+            ubg['vaccines'] = max_total_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
+            lbg['vaccines'] = -np.inf
+        else:
+            for k in range(self.N):
+                ubg['vaccines', k] = np.cumsum(max_total_vacc)[k]
+
+
+
 
         ubg['Sgeq0'] = np.inf
 
@@ -575,11 +583,14 @@ class COVIDVaccinationOCP:
         [fnum, gnum] = self.nlpFun(self.opt, self.arg['p'])
         # self.Jgnum = self.nlpJac(self.opt, self.arg['p'])
         self.gnum = self.g(gnum)  # 2times ?
-        print(f"""
-        Vaccines stockpile: 
-            {float(self.arg['ubg']['vaccines']):.1f} total.
-            {float(self.g(self.gnum)['vaccines']):.1f} spent.
-            {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):.1f} left.""")
+        try:
+            print(f"""
+            Vaccines stockpile: 
+                {float(self.arg['ubg']['vaccines']):.1f} total.
+                {float(self.g(self.gnum)['vaccines']):.1f} spent.
+                {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):.1f} left.""")
+        except TypeError:
+            pass
 
         print(f'Total Solving done in {timer() - timer_start:.1f}s')
         if save:
