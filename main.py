@@ -22,9 +22,9 @@ nc = 1
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=60, envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
               help="Whether to use agestructured OCP")
@@ -88,9 +88,7 @@ if __name__ == '__main__':
                                                           show_steps=False)
 
         max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
-        vacc_total = np.ones(N)*500
-        vacc_total[30:40] = 0
-
+        vacc_total = np.ones(N)*479700/7
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,
@@ -98,6 +96,7 @@ if __name__ == '__main__':
                                                                           controls=control_initial,
                                                                           save_to=f'{outdir}{prefix}-int{nnodes}',
                                                                           n_rk4_steps=n_int_steps)
+
         if optimize:
             ocp.update(parameters=p,
                        max_total_vacc=vacc_total,
