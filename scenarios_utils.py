@@ -6,8 +6,9 @@ import numpy as np
 def pick_scenario(setup, scn_id):
     if setup.nnodes == 107:
         scenarios_specs = {
-            'vacctotalM': [2, 5, 10, 15, 20],
-            'vaccpermonthM': [1, 2.5, 5, 15], # ax.set_ylim(0.05, 0.4)
+            #'vacctotalM': [2, 5, 10, 15, 20],
+            'vacctotalperweek': [250000, 479700, 1e6],
+            'vaccpermonthM': [1, 15], # ax.set_ylim(0.05, 0.4)
             'epicourse': ['U', 'L']  # 'U'
         }
     elif setup.nnodes == 10:
@@ -27,8 +28,8 @@ def pick_scenario(setup, scn_id):
     #    raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
-    scenario = {'name': f"FR-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalM']}",
-                'vacctotal': scn_spec['vacctotalM'] * 1e6,
+    scenario = {'name': f"mr-{scn_spec['epicourse']}-R{scn_spec['vaccpermonthM']}-T{scn_spec['vacctotalperweek']}",
+                'vacctotalday': scn_spec['vacctotalperweek']/7,
                 'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
     # Build beta scenarios:
@@ -52,8 +53,10 @@ def build_scenario(setup, scenario):
     max_vacc_rate = np.zeros((M, N))
     allocated_total = 0
     unvac_nd = np.copy(setup.pop_node)
+    vacc_total = np.zeros(N)
 
     for k in range(N):
+        vacc_total[k] = scenario['vacctotalday']
         for nd in range(M):
             pop_nd = setup.pop_node[nd]
             max_vacc_rate[nd, k] = eval(scenario['rate_fomula'])
@@ -63,6 +66,6 @@ def build_scenario(setup, scenario):
                 allocated_total += max_vacc_rate[nd, k]
                 unvac_nd[nd] -= max_vacc_rate[nd, k]
 
-    vacc_total = scenario['vacctotal']
+    vacc_total = np.cumsum(vacc_total)
 
     return max_vacc_rate, vacc_total, control_initial

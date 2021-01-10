@@ -22,7 +22,7 @@ nc = 1
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[2], help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -55,6 +55,7 @@ if __name__ == '__main__':
     else:
         with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
+
 
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)

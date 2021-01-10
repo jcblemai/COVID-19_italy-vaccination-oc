@@ -22,7 +22,7 @@ class OCParameters:
             eng.cd('data-assimilation/', nargout=0)
             # The realization with the maximum infected at the end of the 3 months is realization 33.
             # The realization with the median number of infected at the end of the 3 months is realization 24.
-            eng.workspace['i'] = 24
+            eng.workspace['i'] = 64
             eng.run('minimal_interface.m', nargout=0)
 
         if when == 'past':
