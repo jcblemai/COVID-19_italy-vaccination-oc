@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import pickle
 from timeit import default_timer as timer
 
 #if "Agg" not in mpl.get_backend():
@@ -614,3 +615,8 @@ class COVIDVaccinationOCP:
                                                       'comp': st})])
         results['placeID'] = results['placeID'].astype(int)
         results.to_csv(f'{self.scenario_name}.csv', index=False)
+
+        with open(f'{self.scenario_name}_lamg.pkl', 'wb') as out:
+            pickle.dump(self.lam_g, out, pickle.HIGHEST_PROTOCOL)
+        with open(f'{self.scenario_name}_lamx.pkl', 'wb') as out:
+            pickle.dump(self.lam_x, out, pickle.HIGHEST_PROTOCOL)
