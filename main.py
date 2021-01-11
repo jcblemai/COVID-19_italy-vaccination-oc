@@ -103,6 +103,6 @@ if __name__ == '__main__':
                        states_initial=state_initial,
                        control_initial=control_initial,
                        mob_initial=mob,
-                       scenario_name=f'{outdir}{prefix}-opt{nnodes}')
+                       scenario_name=f'{outdir}{prefix}-opt{nnodes}_{ndays}')
 
             ocp.solveOCP()
