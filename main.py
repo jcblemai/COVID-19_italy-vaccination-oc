@@ -14,17 +14,17 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 outdir = 'model_output/'
 os.makedirs(outdir, exist_ok=True)
 when = 'future'
-optimize = False
-n_int_steps = 5
+optimize = True
+n_int_steps = 6
 ocp = None
 nc = 1
 
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=[0,1], help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-t", "--ndays", "ndays", default=120, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
               help="Whether to use agestructured OCP")
@@ -56,7 +56,6 @@ if __name__ == '__main__':
         with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
 
-
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)
         prefix = file_prefix + scenario['name']
@@ -79,7 +78,7 @@ if __name__ == '__main__':
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
-                                                                          save_to=f'{outdir}{prefix}-int{nnodes}-nc',
+                                                                          save_to=f'{outdir}{prefix}-int{nnodes}_{ndays}-nc',
                                                                           method='rk4',
                                                                           n_rk4_steps=n_int_steps)
 
@@ -94,7 +93,7 @@ if __name__ == '__main__':
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
-                                                                          save_to=f'{outdir}{prefix}-int{nnodes}',
+                                                                          save_to=f'{outdir}{prefix}-int{nnodes}_{ndays}',
                                                                           n_rk4_steps=n_int_steps)
 
         if optimize:

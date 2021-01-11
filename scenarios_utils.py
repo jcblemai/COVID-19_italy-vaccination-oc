@@ -7,7 +7,7 @@ def pick_scenario(setup, scn_id):
     if setup.nnodes == 107:
         scenarios_specs = {
             #'vacctotalM': [2, 5, 10, 15, 20],
-            'newdoseperweek': [250000, 479700, 1e6, 2e6],
+            'newdoseperweek': [125000, 250000, 479700, 1e6, 2e6],
             'vaccpermonthM': [1, 2, 15], # ax.set_ylim(0.05, 0.4)
             'epicourse': ['U', 'L']  # 'U'
         }
@@ -28,7 +28,7 @@ def pick_scenario(setup, scn_id):
     #    raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
-    scenario = {'name': f"mr-{scn_spec['epicourse']}-L{scn_spec['vaccpermonthM']}-S{scn_spec['newdoseperweek']}",
+    scenario = {'name': f"{scn_spec['epicourse']}-r{scn_spec['vaccpermonthM']}-t{int(scn_spec['newdoseperweek'])}",
                 'newdoseperday': scn_spec['newdoseperweek']/7,
                 'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
@@ -36,11 +36,11 @@ def pick_scenario(setup, scn_id):
     if scn_spec['epicourse'] == 'C':
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays))
     elif scn_spec['epicourse'] == 'U':
-        course = scipy.interpolate.interp1d([0, 50, 100], [1.3, .7, 2], kind='quadratic')
+        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [1.3, .7, 1.2, 1], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     elif scn_spec['epicourse'] == 'L':
-        course = scipy.interpolate.interp1d([0, 50, 100], [.75, .85, .45], kind='quadratic')
+        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [.75, .85, .45, .45], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     return scenario
