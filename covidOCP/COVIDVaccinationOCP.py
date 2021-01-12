@@ -8,9 +8,9 @@ from tqdm import tqdm
 import pickle
 from timeit import default_timer as timer
 
-#if "Agg" not in mpl.get_backend():
+# if "Agg" not in mpl.get_backend():
 #    mpl.interactive(True)
-#plt.ion()
+# plt.ion()
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
@@ -208,6 +208,7 @@ def euler_integrate(y, pvector, mob, pop_node, p_foi, dt):
 
 
 def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save_to=None):
+    print(f"===> Integrating for {save_to}")
     M = setup.nnodes
 
     pvector, pvector_names = parameters.get_pvector()
@@ -224,7 +225,6 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
         for i in range(M):
             y[i, 0, cp] = parameters.x0[i, cp]
 
-    print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
         mobK = setup.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
@@ -356,7 +356,6 @@ class COVIDVaccinationOCP:
             rk4_step = ca.Function('rk4_step', [states, controls, covar, params, pop_nodeSX, p_foiSX],
                                    [x_next, ell_next])
 
-
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
         VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
@@ -371,7 +370,7 @@ class COVIDVaccinationOCP:
         rk4_int = ca.Function('rk4_int', [states, ca.veccat(controls, covar, params, pop_nodeSX, p_foiSX)], [x_, ell],
                               ['x0', 'p'], ['xf', 'qf'])
 
-        #cat.dotdraw(x_, figsize=(10, 10))
+        # cat.dotdraw(x_, figsize=(10, 10))
 
         # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
@@ -448,20 +447,19 @@ class COVIDVaccinationOCP:
                 reg += reg_ik
                 mob_ik = sum(C[i, m] * foi[m] for m in range(M)) * mob_scaling
 
-
                 # spatial, vaccines and dyn are put in g(x),
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
                 VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S', 'E', 'P', 'A', 'R'])
-                #Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
+                # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
                 vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] * (N + 1) / N
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
-        #cat.dotdraw(mob_ik, figsize=(10, 10))
+        # cat.dotdraw(mob_ik, figsize=(10, 10))
         print('-----> Writing constraints, ...', end='')
         self.g = cat.struct_MX([
             cat.entry("dyn", expr=dyn),
@@ -494,7 +492,7 @@ class COVIDVaccinationOCP:
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
-        #options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
+        # options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,

@@ -8,8 +8,8 @@
 
 N=${SLURM_ARRAY_TASK_ID}
 
-export MDL_DAYS=120
-export F_PREFIX="2021-01-11"
+export MDL_DAYS=90
+export F_PREFIX="2021-01-11_small"
 
 module purge
 module restore COVID_OCP
