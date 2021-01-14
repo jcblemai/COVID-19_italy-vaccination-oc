@@ -3,13 +3,14 @@
 #SBATCH --ntasks-per-node 1  # MPI sense -> just 1.
 #SBATCH --cpus-per-task 36   # No more than the number of CPU in a node. CPU <- coeur dans slurm
 #SBATCH --mem 180G          # Per node
-#SBATCH --time 3-0          #J-H:m:s
+#SBATCH --time 7-0          #J-H:m:s
 #SBATCH --array=0-30         # Index are choosen by me (can relaunch) before 0-1
+#SBATCH --qos=week           # Echo is authorized to launch week-long job
 
 N=${SLURM_ARRAY_TASK_ID}
 
 export MDL_DAYS=90
-export F_PREFIX="2021-01-11_small"
+export F_PREFIX="2021-01-14_small"
 
 module purge
 module restore COVID_OCP
