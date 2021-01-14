@@ -395,7 +395,7 @@ class COVIDVaccinationOCP:
         dyn = [None] * N
         spatial = [None] * N
         Sgeq0 = [None] * N
-        vaccines = [0] * N
+        vaccines = [None] * N
         print(f"===> Building OCP {M} nodes:""")
         for k in tqdm(range(N)):
             mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
@@ -455,7 +455,9 @@ class COVIDVaccinationOCP:
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] #* (N + 1) / N
+                #vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] #* (N + 1) / N
+
+            vaccines[k] = sum([sum(self.Vars['u', :, j, 'v']) for j in range(k+1)])
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 

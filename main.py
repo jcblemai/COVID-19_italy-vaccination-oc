@@ -58,7 +58,7 @@ if __name__ == '__main__':
 
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)
-        prefix = file_prefix + scenario['name']
+        prefix = file_prefix + '-' + scenario['name']
 
         print(f"""Running scenario {scn_id}: {scenario['name']}, building setup with
         ndays: {ndays}
@@ -78,7 +78,7 @@ if __name__ == '__main__':
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
-                                                                          save_to=f'{outdir}{prefix}-int{nnodes}_{ndays}-nc',
+                                                                          save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}-nc',
                                                                           method='rk4',
                                                                           n_rk4_steps=n_int_steps)
 
@@ -93,7 +93,7 @@ if __name__ == '__main__':
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
-                                                                          save_to=f'{outdir}{prefix}-int{nnodes}_{ndays}',
+                                                                          save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}',
                                                                           n_rk4_steps=n_int_steps)
 
         if optimize:
@@ -103,6 +103,6 @@ if __name__ == '__main__':
                        states_initial=state_initial,
                        control_initial=control_initial,
                        mob_initial=mob,
-                       scenario_name=f'{outdir}{prefix}-opt{nnodes}_{ndays}')
+                       scenario_name=f'{outdir}{prefix}-opt-{nnodes}_{ndays}')
 
             ocp.solveOCP()
