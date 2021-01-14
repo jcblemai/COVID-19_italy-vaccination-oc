@@ -455,7 +455,7 @@ class COVIDVaccinationOCP:
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] * (N + 1) / N
+                vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] #* (N + 1) / N
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
@@ -528,6 +528,7 @@ class COVIDVaccinationOCP:
         else:
             for k in range(self.N):
                 ubg['vaccines', k] = max_total_vacc[k]
+                lbg['vaccines', k] = -np.inf
 
         ubg['Sgeq0'] = np.inf
 
