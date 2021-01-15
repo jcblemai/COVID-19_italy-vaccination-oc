@@ -21,7 +21,7 @@ export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/src/hsl/20190503/lib
 
 # If one job per node
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun python -u main.py -s ${SLURM_ARRAY_TASK_ID} -t $MDL_DAYS -n $MDL_NNODES -f $F_PREFIX -d $F_DIR --use_matlab False --optimize True ${F_DIR}out${SLURM_ARRAY_TASK_ID}.out 2>&1 &
+srun python -u main.py -s ${SLURM_ARRAY_TASK_ID} -t $MDL_DAYS -n $MDL_NNODES -f $F_PREFIX -d $F_DIR --use_matlab False --optimize True > ${F_DIR}out${SLURM_ARRAY_TASK_ID}.out 2>&1 &
 
 # If two jobs per nodes
 #export OMP_NUM_THREADS=$(( $SLURM_CPUS_PER_TASK / 2 ))
