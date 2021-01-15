@@ -515,7 +515,7 @@ class COVIDVaccinationOCP:
         self.scenario_name = 'no_update'
         print(f'Total build time {timer() - timer_start:.1f}')
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, mob_initial,
+    def update(self, parameters, stockpile_national_constraint, maxvaccrate_regional, states_initial, control_initial, mob_initial,
                scenario_name='test'):
         # This initialize
         lbg = self.g(0)
@@ -524,12 +524,12 @@ class COVIDVaccinationOCP:
         lbx = self.Vars(-np.inf)
         ubx = self.Vars(np.inf)
 
-        if isinstance(max_total_vacc, (int, float, complex)):
-            ubg['vaccines'] = max_total_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
+        if isinstance(stockpile_national_constraint, (int, float, complex)):
+            ubg['vaccines'] = stockpile_national_constraint  # 2000 * (T * .6) * M  # 8e6 #*M
             lbg['vaccines'] = -np.inf
         else:
             for k in range(self.N):
-                ubg['vaccines', k] = max_total_vacc[k]
+                ubg['vaccines', k] = stockpile_national_constraint[k]
                 lbg['vaccines', k] = -np.inf
 
         ubg['Sgeq0'] = np.inf
@@ -537,7 +537,7 @@ class COVIDVaccinationOCP:
         lbx['u', :, :, 'v'] = 0.
         for k in range(self.N):
             for nd in range(self.M):
-                ubx['u', nd, k, 'v'] = max_vacc_rate[nd, k]
+                ubx['u', nd, k, 'v'] = maxvaccrate_regional[nd, k]
 
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):

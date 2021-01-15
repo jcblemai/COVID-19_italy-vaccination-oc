@@ -23,12 +23,12 @@ nc = 1
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=5, help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=15, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-t", "--ndays", "ndays", default=25, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
               help="Whether to use agestructured OCP")
-@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='',
+@click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test',
               show_default=True, help="file prefix to add to identify the current set of runs.")
 def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix):
     if not isinstance(scn_ids, list):
@@ -71,8 +71,6 @@ if __name__ == '__main__':
         p.apply_epicourse(setup, scenario['beta_mult'])
 
         control_initial = np.zeros((M, N))
-        max_vacc_rate = np.zeros((M, N))
-        initial = np.zeros((M, N + 1, nx))
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,
@@ -87,7 +85,7 @@ if __name__ == '__main__':
                                                           setup=setup, parameters=p,
                                                           show_steps=False)
 
-        max_vacc_rate, vacc_total, control_initial = build_scenario(setup, scenario)
+        maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario)
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,
@@ -98,8 +96,8 @@ if __name__ == '__main__':
 
         if optimize:
             ocp.update(parameters=p,
-                       max_total_vacc=vacc_total,
-                       max_vacc_rate=max_vacc_rate,
+                       stockpile_national_constraint=stockpile_national_constraint,
+                       maxvaccrate_regional=maxvaccrate_regional,
                        states_initial=state_initial,
                        control_initial=control_initial,
                        mob_initial=mob,
