@@ -14,8 +14,8 @@ def pick_scenario(setup, scn_id):
         }
     elif setup.nnodes == 10:
         scenarios_specs = {
-            'newdoseperweek': [10000, 50000],
-            'vaccpermonthM': [1],
+            'newdoseperweek': [125000/10, 250000/10],
+            'vaccpermonthM': [125000/5, 1],
             'epicourse': ['U']  # 'U', 'L'
         }
 
