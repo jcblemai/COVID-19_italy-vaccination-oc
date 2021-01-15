@@ -11,14 +11,10 @@ from scenarios_utils import pick_scenario, build_scenario
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
-outdir = 'model_output/'
-os.makedirs(outdir, exist_ok=True)
 when = 'future'
-optimize = True
 n_int_steps = 6
 ocp = None
 nc = 1
-
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=5, help="Index of scenario to run")
@@ -30,16 +26,20 @@ nc = 1
               help="Whether to use agestructured OCP")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test',
               show_default=True, help="file prefix to add to identify the current set of runs.")
-def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix):
+@click.option("-d", "--output_directory", "outdir", envvar="OCP_OUTDIR", type=str, default='model_output/',
+              show_default=True, help="Where to write runs")
+@click.option("-o", "--optimize", "optimize", type=bool, default=True, show_default=True, help="Whether to optimize")
+def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize):
     if not isinstance(scn_ids, list):
         scn_ids = [int(scn_ids)]
-    return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix
+    return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize
 
 
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
-    scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix = cli(standalone_mode=False)
+    scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize = cli(standalone_mode=False)
+    os.makedirs(outdir, exist_ok=True)
     # scn_ids = np.arange(18)
 
     # All arrays here are (nnodes, ndays, (nx))
@@ -50,10 +50,10 @@ if __name__ == '__main__':
     if use_matlab:
         p = COVIDParametersOCP.OCParameters(setup=setup, M=M, when=when)
         if True:
-            with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'wb') as out:
+            with open(f'italy-data/parameters_{nnodes}_{when}.pkl', 'wb') as out:
                 pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
     else:
-        with open(f'{outdir}parameters_{nnodes}_{when}.pkl', 'rb') as inp:
+        with open(f'italy-data/parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
 
     for scn_id in scn_ids:
