@@ -12,7 +12,7 @@ N=${SLURM_ARRAY_TASK_ID}
 export MDL_DAYS=90
 export MDL_NNODES=107
 export F_DIR="`date +%Y-%m-%d`-${MDL_NNODES}_${MDL_DAYS}/"
-export F_PREFIX= "week"
+export F_PREFIX="week"
 mkdir -p $F_DIR
 
 module purge
