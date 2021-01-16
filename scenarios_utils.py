@@ -15,7 +15,7 @@ def pick_scenario(setup, scn_id):
     elif setup.nnodes == 10:
         scenarios_specs = {
             'newdoseperweek': [125000/10, 250000/10],
-            'vaccpermonthM': [125000/5, 1],
+            'vaccpermonthM': [1/10, 15/10],
             'epicourse': ['U']  # 'U', 'L'
         }
 
@@ -29,7 +29,7 @@ def pick_scenario(setup, scn_id):
     #    raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
-    scenario = {'name': f"{scn_spec['epicourse']}-r{scn_spec['vaccpermonthM']}-t{int(scn_spec['newdoseperweek'])}",
+    scenario = {'name': f"{scn_spec['epicourse']}-r{int(scn_spec['vaccpermonthM'])}-t{int(scn_spec['newdoseperweek'])}",
                 'newdoseperweek': scn_spec['newdoseperweek'],
                 'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
@@ -77,4 +77,4 @@ def build_scenario(setup, scenario):
         if (setup.start_date + datetime.timedelta(days=k)).weekday() != 0:  # if NOt monday:
             stockpile_national_constraint[k] = np.inf
 
-    return maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial
+    return maxvaccrate_regional, stockpile_national, stockpile_national, control_initial
