@@ -18,6 +18,7 @@ module purge
 module restore COVID_OCP
 source $HOME/venvs/$SYS_TYPE/bin/activate
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/src/hsl/20190503/lib
+export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_rt.so
 
 
 # If one job per node

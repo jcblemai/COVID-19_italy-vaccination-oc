@@ -19,7 +19,7 @@ nc = 1
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=25, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-t", "--ndays", "ndays", default=26, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
@@ -28,7 +28,7 @@ nc = 1
               show_default=True, help="file prefix to add to identify the current set of runs.")
 @click.option("-d", "--output_directory", "outdir", envvar="OCP_OUTDIR", type=str, default='model_output/',
               show_default=True, help="Where to write runs")
-@click.option("-o", "--optimize", "optimize", type=bool, default=True, show_default=True, help="Whether to optimize")
+@click.option("-o", "--optimize", "optimize", type=bool, default=False, show_default=True, help="Whether to optimize")
 def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize):
     if not isinstance(scn_ids, list):
         scn_ids = [int(scn_ids)]
@@ -86,7 +86,7 @@ if __name__ == '__main__':
                                                           show_steps=False)
 
         maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario)
-        print(maxvaccrate_regional[0], stockpile_national, stockpile_national_constraint, control_initial[0])
+        print(stockpile_national_constraint)
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,

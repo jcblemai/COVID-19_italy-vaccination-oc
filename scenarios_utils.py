@@ -74,7 +74,10 @@ def build_scenario(setup, scenario):
     stockpile_national = np.cumsum(stockpile_national)
     stockpile_national_constraint = np.copy(stockpile_national)
     for k in range(N):
-        if (setup.start_date + datetime.timedelta(days=k)).weekday() != 6:  # if NOt monday:
+        if (setup.start_date + datetime.timedelta(days=k)).weekday() != 6:  # if NOt sunday
             stockpile_national_constraint[k] = np.inf
 
-    return maxvaccrate_regional, stockpile_national, stockpile_national, control_initial
+    if stockpile_national_constraint[-1] == np.inf:
+        stockpile_national_constraint[-1] = stockpile_national.max() + scenario['newdoseperweek']
+
+    return maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial
