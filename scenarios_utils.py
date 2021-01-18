@@ -78,6 +78,7 @@ def build_scenario(setup, scenario):
             stockpile_national_constraint[k] = np.inf
 
     if stockpile_national_constraint[-1] == np.inf:
-        stockpile_national_constraint[-1] = stockpile_national.max() + scenario['newdoseperweek']
+        # np.nanmax(stockpile_national_constraint[stockpile_national_constraint != np.inf]) + scenario['newdoseperweek']
+        stockpile_national_constraint[-1] = stockpile_national.max()
 
     return maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial
