@@ -85,8 +85,7 @@ if __name__ == '__main__':
                                                           setup=setup, parameters=p,
                                                           show_steps=False)
 
-        maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario)
-        print(stockpile_national_constraint)
+        maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario)
 
         results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
                                                                           setup=setup,

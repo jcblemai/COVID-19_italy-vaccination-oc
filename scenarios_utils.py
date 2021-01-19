@@ -29,7 +29,7 @@ def pick_scenario(setup, scn_id):
     #    raise ValueError("Scenario is useless")
 
     tot_pop = setup.pop_node.sum()
-    scenario = {'name': f"{scn_spec['epicourse']}-r{int(scn_spec['vaccpermonthM'])}-t{int(scn_spec['newdoseperweek'])}",
+    scenario = {'name': f"{scn_spec['epicourse']}-r{int(scn_spec['vaccpermonthM'])}-t{int(scn_spec['newdoseperweek'])}-id{scn_id}",
                 'newdoseperweek': scn_spec['newdoseperweek'],
                 'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
@@ -53,15 +53,15 @@ def build_scenario(setup, scenario):
     control_initial = np.zeros((M, N))
     maxvaccrate_regional = np.zeros((M, N))
     unvac_nd = np.copy(setup.pop_node)
-    stockpile_national = np.zeros(N)
+    delivery_national = np.zeros(N)
 
     stockpile = 0
     for k in range(N):
         if (setup.start_date + datetime.timedelta(days=k)).weekday() == 0:  # if monday
-            stockpile_national[k] = scenario['newdoseperweek']
+            delivery_national[k] = scenario['newdoseperweek']
         else:
-            stockpile_national[k] = 0
-        stockpile += stockpile_national[k]
+            delivery_national[k] = 0
+        stockpile += delivery_national[k]
         for nd in range(M):
             pop_nd = setup.pop_node[nd]
             maxvaccrate_regional[nd, k] = eval(scenario['rate_fomula'])
@@ -71,14 +71,13 @@ def build_scenario(setup, scenario):
             stockpile -= to_allocate
             unvac_nd[nd] -= to_allocate
 
-    stockpile_national = np.cumsum(stockpile_national)
-    stockpile_national_constraint = np.copy(stockpile_national)
+    stockpile_national_constraint = np.cumsum(delivery_national)
     for k in range(N):
         if (setup.start_date + datetime.timedelta(days=k)).weekday() != 6:  # if NOt sunday
             stockpile_national_constraint[k] = np.inf
 
     if stockpile_national_constraint[-1] == np.inf:
         # np.nanmax(stockpile_national_constraint[stockpile_national_constraint != np.inf]) + scenario['newdoseperweek']
-        stockpile_national_constraint[-1] = stockpile_national.max()
+        stockpile_national_constraint[-1] = delivery_national.max()
 
-    return maxvaccrate_regional, stockpile_national, stockpile_national_constraint, control_initial
+    return maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial
