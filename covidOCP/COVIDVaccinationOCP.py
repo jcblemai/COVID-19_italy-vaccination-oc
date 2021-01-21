@@ -177,7 +177,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
 
     rhs_ell = [None] * 3
     rhs_ell[0] = gammaH * H  # recovered from the hospital
-    rhs_ell[1] = alphaH * H  # total death
+    rhs_ell[1] = foi * S #alphaH * H  # total death   # ONLY THIS ONE IS USED
     rhs_ell[2] = (1 - zeta) * eta * I  # cumulative hospitalized cases
 
     return rhs, rhs_ell
@@ -283,7 +283,14 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                  'date': setup.model_days,
                  'place': setup.ind2name[nd],
                  'placeID': int(nd),
-                 'comp': 'vacc'})])
+                 'comp': 'vacc'}),
+                     pd.DataFrame.from_dict(
+                         {'value': yell[nd],
+                          'date': setup.model_days,
+                          'place': setup.ind2name[nd],
+                          'placeID': int(nd),
+                          'comp': 'yell'})
+             ])
         for i, st in enumerate(states_names):
             results = pd.concat(
                 [results, pd.DataFrame.from_dict({'value': y[nd, :, i].ravel(),
