@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import pickle
 from timeit import default_timer as timer
 
 # if "Agg" not in mpl.get_backend():
@@ -66,7 +67,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
         rhs[8 + nx * ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
 
     rhs_ell[0] = sum(alphaH * ag_death_mult[ag] * H[agid] for agid, ag in enumerate(ages_names))  # total death
-    rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))/1000  # infection
+    rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))  # infection
 
     return rhs, rhs_ell
 
@@ -96,6 +97,7 @@ def euler_integrate(y, pvector, mob, pop_node, p_foi, dt):
 
 
 def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save_to=None):
+    print(f"===> Integrating for {save_to}""")
     M = setup.nnodes
 
     pvector, pvector_names = parameters.get_pvector()
@@ -112,7 +114,6 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
         for i in range(M):
             y[i, 0, :, cp] = parameters.x0_ag[i, :, cp]
 
-    print(f"===> Integrating for {save_to}""")
     for k in tqdm(range(N)):
         mobK = setup.mobintime_arr[:, k]
         betaR = parameters.betaratiointime_arr[:, k]
@@ -188,7 +189,15 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                      'place': setup.ind2name[nd],
                      'cat':ages_names[ag_id],
                      'placeID': int(nd),
-                     'comp': 'vacc'})])
+                     'comp': 'vacc'}),
+                          pd.DataFrame.from_dict(
+                    {'value': yell[nd],
+                     'date': setup.model_days,
+                     'place': setup.ind2name[nd],
+                     'cat': ages_names[ag_id],
+                     'placeID': int(nd),
+                     'comp': 'yell'})
+                 ])
             for i, st in enumerate(states_names):
                 results = pd.concat(
                     [results, pd.DataFrame.from_dict({'value': y[nd, :, ag_id, i].ravel(),
@@ -319,6 +328,7 @@ class COVIDVaccinationOCP:
         spatial = [None] * N
         rate = [None] * N
         Sgeq0 = [None] * N
+        vaccines = [None] * N
         print(f"===> Building OCP {M} nodes:""")
         for k in tqdm(range(N)):
             mobK = self.Params['cov', :, k, 'mobility_t']  # mobintime.to_numpy().T[:,k]
@@ -395,7 +405,8 @@ class COVIDVaccinationOCP:
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
-                vaccines += sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names) * (N + 1) / N
+                #vaccines += sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names) * (N + 1) / N
+            vaccines[k] = sum([sum(self.Vars['u', :, j, 'vAll']) for j in range(k + 1)])
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
@@ -450,7 +461,7 @@ class COVIDVaccinationOCP:
         self.scenario_name = 'no_update'
         print(f'Total build time {timer() - timer_start:.1f}')
 
-    def update(self, parameters, max_total_vacc, max_vacc_rate, states_initial, control_initial, mob_initial,
+    def update(self, parameters, stockpile_national_constraint, maxvaccrate_regional, states_initial, control_initial, mob_initial,
                scenario_name='test'):
         # This initialize
         lbg = self.g(0)
@@ -459,15 +470,20 @@ class COVIDVaccinationOCP:
         lbx = self.Vars(-np.inf)
         ubx = self.Vars(np.inf)
 
-        ubg['vaccines'] = max_total_vacc  # 2000 * (T * .6) * M  # 8e6 #*M
-        lbg['vaccines'] = -np.inf
+        if isinstance(stockpile_national_constraint, (int, float, complex)):
+            ubg['vaccines'] = stockpile_national_constraint  # 2000 * (T * .6) * M  # 8e6 #*M
+            lbg['vaccines'] = -np.inf
+        else:
+            for k in range(self.N):
+                ubg['vaccines', k] = stockpile_national_constraint[k]
+                lbg['vaccines', k] = -np.inf
 
         ubg['Sgeq0'] = np.inf
 
 
         for k in range(self.N):
             for nd in range(self.M):
-                ubx['u', nd, k, 'vAll'] = max_vacc_rate[nd, k]
+                ubx['u', nd, k, 'vAll'] = maxvaccrate_regional[nd, k]
                 lbx['u', nd, k] = [0., 0., 0., 0., 0.]
 
         # Set initial conditions as constraints
@@ -516,12 +532,14 @@ class COVIDVaccinationOCP:
         [fnum, gnum] = self.nlpFun(self.opt, self.arg['p'])
         # self.Jgnum = self.nlpJac(self.opt, self.arg['p'])
         self.gnum = self.g(gnum)  # 2times ?
-        print(f"""
-        Vaccines stockpile: 
-            {float(self.arg['ubg']['vaccines']):.1f} total.
-            {float(self.g(self.gnum)['vaccines']):.1f} spent.
-            {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):.1f} left.""")
-
+        try:
+            print(f"""
+            Vaccines stockpile: 
+                {float(self.arg['ubg']['vaccines']):.1f} total.
+                {float(self.g(self.gnum)['vaccines']):.1f} spent.
+                {float((self.arg['ubg']['vaccines'] - self.g(self.gnum)['vaccines'])):.1f} left.""")
+        except TypeError:
+            pass
         print(f'Total Solving done in {timer() - timer_start:.1f}s')
         if save:
             self.saveOCP()
