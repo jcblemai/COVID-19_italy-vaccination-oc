@@ -244,8 +244,8 @@ class COVIDVaccinationOCP:
         # controls = cat.struct_symSX(['v', 'mob'])
         # [_, mob] = controls[...]
 
-        controls = cat.struct_symSX(['vAll', 'vY', 'vM', 'vO', 'mob'])
-        [vAll, vY, vM, vO, mob] = controls[...]
+        controls = cat.struct_symSX(['vY', 'vM', 'vO', 'mob'])
+        [vY, vM, vO, mob] = controls[...]
 
         covar = cat.struct_symSX(['mobility_t', 'betaratio_t'])
         [mobility_t, betaratio_t] = covar[...]
@@ -400,13 +400,19 @@ class COVIDVaccinationOCP:
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
-                rate[k].append(self.Vars['u', i, k, 'vAll'] - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
+                #rate[k].append(self.Vars['u', i, k, 'vAll'] - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
+                rate[k].append(sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 VacPpl = sum(self.Vars['x', i, k, ag, comp] for ag in ages_names for comp in ['S', 'E', 'P', 'A', 'R'])
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
                 #vaccines += sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names) * (N + 1) / N
-            vaccines[k] = sum([sum(self.Vars['u', :, j, 'vAll']) for j in range(k + 1)])
+
+            subsum = 0
+            for j in range(k+1):
+                for ag in ages_names:
+                    subsum += sum(self.Vars['u', :, j, f'v{ag}'])
+            vaccines[k] = subsum
 
         f /= (N + 1)  # Average over interval for cost ^ but not terminal cost
 
@@ -480,11 +486,14 @@ class COVIDVaccinationOCP:
 
         ubg['Sgeq0'] = np.inf
 
+        for ag in ages_names:
+            lbx['u', :, :, f'v{ag}'] = 0
 
         for k in range(self.N):
             for nd in range(self.M):
-                ubx['u', nd, k, 'vAll'] = maxvaccrate_regional[nd, k]
-                lbx['u', nd, k] = [0., 0., 0., 0., 0.]
+                ubg['rate', k, nd] = maxvaccrate_regional[nd, k]
+                lbg['rate', k, nd] = -np.inf
+
 
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):
