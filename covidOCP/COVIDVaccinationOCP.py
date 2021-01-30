@@ -173,7 +173,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     rhs[5] = zeta * eta * I - gammaQ * Q  # Q
     rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
     rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
-    rhs[8] = vaccrate * S - gammaV * V  # V
+    rhs[8] = vaccrate * S #- gammaV * V  # V
 
     rhs_ell = [None] * 3
     rhs_ell[0] = gammaH * H  # recovered from the hospital
