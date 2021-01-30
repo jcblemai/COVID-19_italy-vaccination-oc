@@ -47,13 +47,16 @@ def pick_scenario(setup, scn_id):
     return scenario
 
 
-def build_scenario(setup, scenario):
+def build_scenario(setup, scenario, strategy = None):
     M = setup.nnodes
     N = setup.ndays - 1
     control_initial = np.zeros((M, N))
     maxvaccrate_regional = np.zeros((M, N))
     unvac_nd = np.copy(setup.pop_node)
     delivery_national = np.zeros(N)
+
+    if strategy is None:
+        strategy = setup.pop_node
 
     stockpile = 0
     for k in range(N):
@@ -65,8 +68,8 @@ def build_scenario(setup, scenario):
         for nd in range(M):
             pop_nd = setup.pop_node[nd]
             maxvaccrate_regional[nd, k] = eval(scenario['rate_fomula'])
-            to_allocate = stockpile * pop_nd / setup.pop_node.sum()
-            to_allocate = min(to_allocate, maxvaccrate_regional[nd, k], unvac_nd[nd] - 100)
+            to_allocate = stockpile * strategy[nd] / strategy.sum()
+            to_allocate = min(to_allocate, maxvaccrate_regional[nd, k]*.9, unvac_nd[nd]*.9)
             control_initial[nd, k] = to_allocate
             stockpile -= to_allocate
             unvac_nd[nd] -= to_allocate
@@ -78,6 +81,6 @@ def build_scenario(setup, scenario):
 
     if stockpile_national_constraint[-1] == np.inf:
         # np.nanmax(stockpile_national_constraint[stockpile_national_constraint != np.inf]) + scenario['newdoseperweek']
-        stockpile_national_constraint[-1] = delivery_national.max()
+        stockpile_national_constraint[-1] = np.cumsum(delivery_national).max()
 
     return maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial
