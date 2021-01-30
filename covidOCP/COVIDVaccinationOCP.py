@@ -258,7 +258,11 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
             VacPpl = Sk[i] + Ek[i] + Pk[i] + Ak[i] + Rk[i]
             vaccrate = controls[i, k] / (VacPpl + 1e-10)
             x_[S] -= vaccrate * Sk[i]
-            x_[V] += vaccrate * Sk[i]
+            x_[E] -= vaccrate * Ek[i]
+            x_[P] -= vaccrate * Pk[i]
+            x_[A] -= vaccrate * Ak[i]
+            x_[R] -= vaccrate * Rk[i]
+            x_[V] += vaccrate
 
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
@@ -366,9 +370,14 @@ class COVIDVaccinationOCP:
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
         VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
-        vaccrate = controls['v'] / (VacPpl + 1e-10)
+        vaccrate = controls['v'] / VacPpl #  + 1e-10)
         x_[0] -= vaccrate * states['S']
-        x_[8] += vaccrate * states['S']
+        x_[1] -= vaccrate * states['E']
+        x_[2] -= vaccrate * states['P']
+        x_[4] -= vaccrate * states['A']
+        x_[7] -= vaccrate * states['R']
+        x_[8] += vaccrate
+
         ell = 0.
         for k in range(n_int_steps):
             x_, ell_ = rk4_step(x_, u_, covar, params, pop_nodeSX, p_foiSX)
