@@ -9,7 +9,7 @@ def pick_scenario(setup, scn_id):
         scenarios_specs = {
             # 'vacctotalM': [2, 5, 10, 15, 20],
             'newdoseperweek': [125000, 250000, 479700, 1e6],
-            'vaccpermonthM': [15, 300],  # ax.set_ylim(0.05, 0.4)
+            'vaccpermonthM': [15, 150],  # ax.set_ylim(0.05, 0.4)
             'epicourse': ['U', 'L']  # 'U'
         }
     elif setup.nnodes == 10:
@@ -37,11 +37,11 @@ def pick_scenario(setup, scn_id):
     if scn_spec['epicourse'] == 'C':
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays))
     elif scn_spec['epicourse'] == 'U':
-        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [1.2,.55, 1.05, 1], kind='linear')
+        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [1.2,.65, 1.2, 1], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     elif scn_spec['epicourse'] == 'L':
-        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [.65, .8, .35, .75], kind='linear')
+        course = scipy.interpolate.interp1d([0, 50, 100, 1000], [.65, .8, .85, .75], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     return scenario

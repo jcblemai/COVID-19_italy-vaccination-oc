@@ -9,7 +9,7 @@ nc = 3
 
 
 class OCParameters:
-    def __init__(self, setup, M, when, posterior_draw=65):
+    def __init__(self, setup, M, when, posterior_draw=102):
         self.M = M
 
         import matlab.engine
@@ -29,18 +29,18 @@ class OCParameters:
             matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
             matlab_end_date = datetime.date(2020, 7, 1)
         elif when == 'future':
-            matlab_start_date = datetime.date(2021, 1, 1)
-            matlab_end_date = datetime.date(2021, 1, 31)
+            matlab_start_date = datetime.date(2021, 1, 4)
+            matlab_end_date = matlab_start_date  + datetime.timedelta(days=30)
         self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
 
-        integ_matlab = np.array(eng.eval('x'))
-        self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
-        for i, name in enumerate(states_names):
-            for nd in range(M):
-                if name != 'V':  # Other wise we go into the cumulativ of the matlab integration and place it as V
-                    self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
+        #integ_matlab = np.array(eng.eval('x'))
+        #self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
+        #for i, name in enumerate(states_names):
+        #    for nd in range(M):
+        #        if name != 'V':  # Other wise we go into the cumulativ of the matlab integration and place it as V
+        #            self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
 
-        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
+        #self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
 
         p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
                                                                                                       setup,
