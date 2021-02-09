@@ -11,7 +11,7 @@ from scenarios_utils import pick_scenario, build_scenario
 nx, nc = 9, 3
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future'
-n_int_steps = 6
+n_int_steps = 50
 ocp = None
 obj = 'infection'
 
@@ -84,7 +84,7 @@ if __name__ == '__main__':
                                                                             method='rk4',
                                                                             n_rk4_steps=n_int_steps)
 
-        maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial_all = build_scenario(setup, scenario)
+        maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial_all = build_scenario(setup, scenario, strategy=yell.sum(axis=1))
         control_initial = np.zeros((M, N, nc))
         for k in range(N):
             for nd in range(M):

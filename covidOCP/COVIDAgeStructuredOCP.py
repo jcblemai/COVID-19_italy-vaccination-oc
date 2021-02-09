@@ -49,6 +49,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
 
     foi_ii = Cii * ((Cii * (betaP0 * betaR * (Psum + epsilonA * Asum)) + epsilonI * betaP0 * betaR * Isum) / (
             Cii * (sum(S + E + P + R + A + V)) + sum(I) + 1e-10))
+
     foi = mob / mob_scaling + foi_ii
     rhs = [None] * nx * nc
     rhs_ell = [None] * 2
@@ -64,7 +65,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
         rhs[5 + nx * ag_id] = zeta * eta * I[ag_id] - gammaQ * Q[ag_id]  # Q
         rhs[6 + nx * ag_id] = (1 - zeta) * eta * I[ag_id] - (gammaH + alphaH) * H[ag_id]  # H
         rhs[7 + nx * ag_id] = gammaI * I[ag_id] + gammaA * A[ag_id] + gammaH * H[ag_id] + gammaQ * Q[ag_id]  # R
-        rhs[8 + nx * ag_id] = vaccrate * S[ag_id] - gammaV * V[ag_id]  # V
+        rhs[8 + nx * ag_id] = vaccrate * S[ag_id] #- gammaV * V[ag_id]  # V
 
     rhs_ell[0] = sum(alphaH * ag_death_mult[ag] * H[agid] for agid, ag in enumerate(ages_names))  # total death
     rhs_ell[1] = sum(foi * S[agid] for agid, ag in enumerate(ages_names))  # infection
@@ -161,7 +162,11 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                 VacPpl = Sk[ag_id][i] + Ek[ag_id][i] + Pk[ag_id][i] + Ak[ag_id][i] + Rk[ag_id][i]
                 vaccrate = controls[i, k, ag_id] / (VacPpl + 1e-10)
                 x_[ag_id][S] -= vaccrate * Sk[ag_id][i]
-                x_[ag_id][V] += vaccrate * Sk[ag_id][i]
+                x_[ag_id][E] -= vaccrate * Ek[ag_id][i]
+                x_[ag_id][P] -= vaccrate * Pk[ag_id][i]
+                x_[ag_id][A] -= vaccrate * Ak[ag_id][i]
+                x_[ag_id][R] -= vaccrate * Rk[ag_id][i]
+                x_[ag_id][V] += vaccrate #* Sk[ag_id][i]
 
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
@@ -289,13 +294,16 @@ class COVIDVaccinationOCP:
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
         for ag_id, ag in enumerate(ages_names):
-            VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[
-                f'{ag}', 'R']
+            VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[f'{ag}', 'R']
 
             vaccrate = controls[f'v{ag}'] / (VacPpl + 1e-10)
 
             x_[0 + nx * ag_id] -= vaccrate * states[f'{ag}', 'S']
-            x_[8 + nx * ag_id] += vaccrate * states[f'{ag}', 'S']
+            x_[1 + nx * ag_id] -= vaccrate * states[f'{ag}', 'E']
+            x_[2 + nx * ag_id] -= vaccrate * states[f'{ag}', 'P']
+            x_[4 + nx * ag_id] -= vaccrate * states[f'{ag}', 'A']
+            x_[7 + nx * ag_id] -= vaccrate * states[f'{ag}', 'R']
+            x_[8 + nx * ag_id] += vaccrate #* states[f'{ag}', 'S']
 
         ell = 0.
         for k in range(n_int_steps):
@@ -450,7 +458,7 @@ class COVIDVaccinationOCP:
         options = {'ipopt': {}}
         options['ipopt']["linear_solver"] = "ma86"  # "ma57"  "ma86"
         # options['ipopt']["print_level"] = 12
-        # options['ipopt']["max_iter"] = 500  # prevent of for beeing clogged in a good scenario
+        options['ipopt']["max_iter"] = 1000  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
 
         self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
