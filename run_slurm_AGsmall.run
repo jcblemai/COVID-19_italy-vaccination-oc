@@ -3,15 +3,16 @@
 #SBATCH --ntasks-per-node 1  # MPI sense -> just 1.
 #SBATCH --cpus-per-task 36   # No more than the number of CPU in a node. CPU <- coeur dans slurm
 #SBATCH --mem 180G          # Per node
-#SBATCH --time 5-0          #J-H:m:s
-#SBATCH --array=12-17         # Index are choosen by me (can relaunch) before 0-1
+#SBATCH --time 5-0           #J-H:m:s
+#SBATCH --array=0-23         # Index are choosen by me (can relaunch) before 0-1
 #SBATCH --qos=fortnight       # Echo is authorized to launch week-long job
 
 N=${SLURM_ARRAY_TASK_ID}
 
 export MDL_DAYS=30
 export MDL_NNODES=107
-export F_DIR="`date +%Y-%m-%d`-${MDL_NNODES}_${MDL_DAYS}_AG/"
+export OBJ="infection"
+export F_DIR="`date +%Y-%m-%d`-${MDL_NNODES}_${MDL_DAYS}_AG_${OBJ}/"
 export F_PREFIX="ag"
 mkdir -p $F_DIR
 
@@ -23,7 +24,7 @@ export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_rt.so
 
 # If one job per node
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun python -u main-ag.py -s ${SLURM_ARRAY_TASK_ID} -t $MDL_DAYS -n $MDL_NNODES -f $F_PREFIX -d $F_DIR --use_matlab False --optimize True > ${F_DIR}out${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
+srun python -u main-ag.py -s ${SLURM_ARRAY_TASK_ID} -t $MDL_DAYS -n $MDL_NNODES -f $F_PREFIX -d $F_DIR --use_matlab False --optimize True -objective $OBJ > ${F_DIR}out${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
 
 # If two jobs per nodes
 #export OMP_NUM_THREADS=$(( $SLURM_CPUS_PER_TASK / 2 ))

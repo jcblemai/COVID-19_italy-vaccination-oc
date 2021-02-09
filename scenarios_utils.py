@@ -9,7 +9,7 @@ def pick_scenario(setup, scn_id):
         scenarios_specs = {
             # 'vacctotalM': [2, 5, 10, 15, 20],
             'newdoseperweek': [125000, 250000, 479700, 1e6],
-            'vaccpermonthM': [15, 150],  # ax.set_ylim(0.05, 0.4)
+            'vaccpermonthM': [1.5, 15, 150],  # ax.set_ylim(0.05, 0.4)
             'epicourse': ['U', 'L']  # 'U'
         }
     elif setup.nnodes == 10:

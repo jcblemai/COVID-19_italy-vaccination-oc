@@ -13,7 +13,6 @@ states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future'
 n_int_steps = 50
 ocp = None
-obj = 'infection'
 
 
 @click.command()
@@ -22,23 +21,23 @@ obj = 'infection'
 @click.option("-t", "--ndays", "ndays", default=26, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
-@click.option("-a", "--age_struct", "age_struct", type=bool, default=True, show_default=True,
+@click.option("-a", "--objective", "objective", type=str, default='infection', show_default=True,
               help="Whether to use agestructured OCP")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test',
               show_default=True, help="file prefix to add to identify the current set of runs.")
 @click.option("-d", "--output_directory", "outdir", envvar="OCP_OUTDIR", type=str, default='model_output_AG/',
               show_default=True, help="Where to write runs")
 @click.option("-o", "--optimize", "optimize", type=bool, default=False, show_default=True, help="Whether to optimize")
-def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize):
+def cli(scn_ids, nnodes, ndays, use_matlab, objective, file_prefix, outdir, optimize):
     if not isinstance(scn_ids, list):
         scn_ids = [int(scn_ids)]
-    return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize
+    return scn_ids, nnodes, ndays, use_matlab, objective, file_prefix, outdir, optimize
 
 
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
-    scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize = cli(standalone_mode=False)
+    scn_ids, nnodes, ndays, use_matlab, objective, file_prefix, outdir, optimize = cli(standalone_mode=False)
     os.makedirs(outdir, exist_ok=True)
 
     # All arrays here are (nnodes, ndays, (nx))
@@ -46,7 +45,7 @@ if __name__ == '__main__':
     M = setup.nnodes
     N = setup.ndays - 1
 
-    assert(obj == 'infection' or obj == 'death')
+    assert(objective == 'infection' or objective == 'death')
 
     if use_matlab:
         p = COVIDParametersOCP.OCParameters(setup=setup, M=M, when=when)
@@ -57,7 +56,7 @@ if __name__ == '__main__':
         with open(f'italy-data/parameters_{nnodes}_{when}.pkl', 'rb') as inp:
             p = pickle.load(inp)
 
-    file_prefix = file_prefix + 'ag'
+    file_prefix = file_prefix
 
     for scn_id in scn_ids:
         scenario = pick_scenario(setup, scn_id)
@@ -69,7 +68,7 @@ if __name__ == '__main__':
         use_matlab: {use_matlab}
         when?  {when}
         rk_steps: {n_int_steps}
-        obj: {obj}
+        obj: {objective}
         ---> Saving results to prefix: {prefix}""")
 
         p.apply_epicourse(setup, scenario['beta_mult'])
@@ -91,8 +90,6 @@ if __name__ == '__main__':
                 for ag_id in range(nc):
                     control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 3
 
-        vacc_total = 500000
-
         results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,
                                                                             parameters=p,
@@ -102,7 +99,7 @@ if __name__ == '__main__':
 
         ocp = COVIDAgeStructuredOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
                                                         setup=setup, parameters=p,
-                                                        objective=obj)
+                                                        objective=objective)
 
         ocp.update(parameters=p,
                    stockpile_national_constraint=stockpile_national_constraint,
@@ -110,6 +107,6 @@ if __name__ == '__main__':
                    states_initial=state_initial,
                    control_initial=control_initial,
                    mob_initial=mob,
-                   scenario_name=f'{outdir}{prefix}-{obj}opt{nnodes}')
+                   scenario_name=f'{outdir}{prefix}-{objective}-opt{nnodes}')
 
         ocp.solveOCP()
