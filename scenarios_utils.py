@@ -2,14 +2,15 @@ import scipy.interpolate
 import itertools
 import datetime
 import numpy as np
+import pandas as pd
 
 
 def pick_scenario(setup, scn_id):
     if setup.nnodes == 107:
         scenarios_specs = {
+            'vaccpermonthM': [3, 15, 150],  # ax.set_ylim(0.05, 0.4)
             # 'vacctotalM': [2, 5, 10, 15, 20],
             'newdoseperweek': [125000, 250000, 479700, 1e6],
-            'vaccpermonthM': [1.5, 15, 150],  # ax.set_ylim(0.05, 0.4)
             'epicourse': ['U', 'L']  # 'U'
         }
     elif setup.nnodes == 10:
@@ -22,11 +23,14 @@ def pick_scenario(setup, scn_id):
     # Compute all permutatios
     keys, values = zip(*scenarios_specs.items())
     permuted_specs = [dict(zip(keys, v)) for v in itertools.product(*values)]
+    specs_df = pd.DataFrame.from_dict(permuted_specs)
 
-    scn_spec = permuted_specs[scn_id]
-    # check if the scenario is useless:
-    # if scn_spec['vaccpermonthM']*setup.ndays/30 < scn_spec['vacctotalM']:
-    #    raise ValueError("Scenario is useless")
+    if setup.nnodes == 107:
+        specs_df = specs_df[((specs_df['vaccpermonthM'] == 15.0) | (specs_df['newdoseperweek'] == 479700.0))].reset_index(drop=True) # Filter out useless scenarios
+
+    # scn_spec = permuted_specs[scn_id]
+    scn_spec = specs_df.loc[scn_id]
+
 
     tot_pop = setup.pop_node.sum()
     scenario = {'name': f"{scn_spec['epicourse']}-r{int(scn_spec['vaccpermonthM'])}-t{int(scn_spec['newdoseperweek'])}-id{scn_id}",
