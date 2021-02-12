@@ -168,7 +168,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
     rhs[1] = foi * S - deltaE * E  # E
     rhs[2] = deltaE * E - deltaP * P  # P
-    rhs[3] = sigma * deltaP * P - (eta + gammaI + alphaI) * I  # I
+    rhs[3] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
     rhs[4] = (1 - sigma) * deltaP * P - gammaA * A  # A
     rhs[5] = zeta * eta * I - gammaQ * Q  # Q
     rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H

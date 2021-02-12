@@ -60,7 +60,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
         rhs[0 + nx * ag_id] = -(foi + vaccrate) * S[ag_id] + gammaV * V[ag_id]  # S
         rhs[1 + nx * ag_id] = foi * S[ag_id] - deltaE * E[ag_id]  # E
         rhs[2 + nx * ag_id] = deltaE * E[ag_id] - deltaP * P[ag_id]  # P
-        rhs[3 + nx * ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI + alphaI) * I[ag_id]  # I
+        rhs[3 + nx * ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI) * I[ag_id]  # I
         rhs[4 + nx * ag_id] = (1 - sigma) * deltaP * P[ag_id] - gammaA * A[ag_id]  # A
         rhs[5 + nx * ag_id] = zeta * eta * I[ag_id] - gammaQ * Q[ag_id]  # Q
         rhs[6 + nx * ag_id] = (1 - zeta) * eta * I[ag_id] - (gammaH + alphaH) * H[ag_id]  # H
