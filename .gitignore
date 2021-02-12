@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+figures/
+helvetios-runs/
+manuscript versions/
+some_figs/
 .DS_Store
 .idea/
 .vscode/
