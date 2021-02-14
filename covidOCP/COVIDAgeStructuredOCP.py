@@ -410,9 +410,7 @@ class COVIDVaccinationOCP:
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
                 #rate[k].append(self.Vars['u', i, k, 'vAll'] - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
                 rate[k].append(sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
-                VacPpl = sum(self.Vars['x', i, k, ag, comp] for ag in ages_names for comp in ['S', 'E', 'P', 'A', 'R'])
-                # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
-                Sgeq0[k].append(VacPpl - sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names))
+                Sgeq0[k].append([sum(self.Vars['x', i, k, ag, comp] for comp in ['S', 'E', 'P', 'A', 'R']) - self.Vars['u', i, k, f'v{ag}'] for ag in ages_names])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
                 #vaccines += sum(self.Vars['u', i, k, f'v{ag}'] for ag in ages_names) * (N + 1) / N
 

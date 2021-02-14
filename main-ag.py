@@ -88,7 +88,7 @@ if __name__ == '__main__':
         for k in range(N):
             for nd in range(M):
                 for ag_id in range(nc):
-                    control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 3
+                    control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 10
 
         results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,
