@@ -37,7 +37,7 @@ def pick_scenario(setup, scn_id):
                 'newdoseperweek': scn_spec['newdoseperweek'],
                 'rate_fomula': f"({scn_spec['vaccpermonthM'] * 1e6 / tot_pop / 30}*pop_nd)"
                 }
-    
+
     # Build beta scenarios:
     if scn_spec['epicourse'] == 'C':
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays))
