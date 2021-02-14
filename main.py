@@ -12,14 +12,14 @@ from scenarios_utils import pick_scenario, build_scenario
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future'
-n_int_steps = 50
+n_int_steps = 25
 ocp = None
 nc = 1
 
 @click.command()
-@click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
+@click.option("-s", "--scenario_id", "scn_ids", default=0, help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-t", "--ndays", "ndays", default=150, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,

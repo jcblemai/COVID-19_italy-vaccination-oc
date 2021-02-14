@@ -143,7 +143,6 @@ def get_parameters_from_matlab(eng, s, model_size):
                                    np.zeros_like(x0_matlab[107 * R + i])]
 
     beta_ratio = np.squeeze(np.array(eng.eval('beta_ratio'))[:model_size])
-    print(beta_ratio.shape)
     #beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=matlab_model_days, columns=np.arange(s.nnodes))
     #betaratiointime = beta_ratio_ts.resample('1D').mean()
 
