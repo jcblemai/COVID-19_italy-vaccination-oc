@@ -36,7 +36,7 @@ class ItalySetup:
         if when == 'past':
             self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
         elif when == 'future':
-            self.start_date = datetime.date(2021, 1, 4)  # fix lentgh
+            self.start_date = datetime.date(2021, 1, 11)  # fix lentgh
         self.end_date = self.start_date + datetime.timedelta(days=ndays-1)
 
         self.model_days = pd.date_range(self.start_date, self.end_date, freq='1D')
