@@ -46,6 +46,6 @@ V.x0 = squeeze(x0_real_out(i,:,1));  % contains x0 of this i, in the same format
 % ---> beta_ratio = interp1(V.tbeta,beta_p',V.time_model)';
 % i'd need this betaratio here, but how to get it. Is this right ?
 
-beta_ratio = repmat(squeeze(beta_r(i,1,:)), 31);  % why 1 and not 2 here ?
+% beta_ratio = repmat(squeeze(beta_r(i,:)), 31);  % why 1 and not 2 here ?
 % beta_ratio = beta_ratio(:);  % Is this correct ? 
-
+beta_ratio = squeeze(beta_r(i,:))';  % Should be 107x1

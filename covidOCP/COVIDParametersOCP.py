@@ -16,36 +16,32 @@ class OCParameters:
 
         eng = matlab.engine.start_matlab()
         if when == 'past':
-            eng.cd('geography-paper-master/', nargout=0)
+            eng.cd('matlab/geography-paper-master/', nargout=0)
             eng.run('single_build.m', nargout=0)
         if when == 'future':
-            eng.cd('data-assimilation/', nargout=0)
+            eng.cd('matlab/data-assimilation/', nargout=0)
             # The realization with the maximum infected at the end of the 3 months is realization 33.
             # The realization with the median number of infected at the end of the 3 months is realization 24.
             eng.workspace['i'] = posterior_draw
             eng.run('minimal_interface.m', nargout=0)
 
-        if when == 'past':
-            matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
-            matlab_end_date = datetime.date(2020, 7, 1)
-        elif when == 'future':
-            matlab_start_date = datetime.date(2021, 1, 4)
-            matlab_end_date = matlab_start_date  + datetime.timedelta(days=30)
-        self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
-
+        #if when == 'past':
+        #    matlab_start_date = datetime.date(2020, 1, 20)  # fix lentgh
+        #    matlab_end_date = datetime.date(2020, 7, 1)
+        #elif when == 'future':
+        #    matlab_start_date = datetime.date(2021, 1, 11)
+        #    matlab_end_date = matlab_start_date  + datetime.timedelta(days=30)
+        #self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
         #integ_matlab = np.array(eng.eval('x'))
         #self.matlab_initial = np.zeros((M, len(self.matlab_model_days), nx))
         #for i, name in enumerate(states_names):
         #    for nd in range(M):
         #        if name != 'V':  # Other wise we go into the cumulativ of the matlab integration and place it as V
         #            self.matlab_initial[nd, :, i] = integ_matlab.T[nd + 107 * i, :].T
-
         #self.matlab_model_days = pd.date_range(matlab_start_date, matlab_end_date, freq='1D')
 
-        p_dict, self.mobfrac, self.mobmat, self.betaratiointime, self.x0 = get_parameters_from_matlab(eng,
-                                                                                                      setup,
-                                                                                                      M,
-                                                                                                      self.matlab_model_days)
+        p_dict, self.mobfrac, self.mobmat, self.beta_ratio, self.x0 = get_parameters_from_matlab(eng, setup, M)
+
         self.params_structural = {'betaP0': p_dict['betaP0'],
                                   'epsilonA': p_dict['epsilonA'],
                                   'epsilonI': p_dict['epsilonI'],
@@ -68,8 +64,8 @@ class OCParameters:
         self.mobmat_pr = self.prune_mobility(setup, mob_prun)
 
         # Numpy array from dataframes:
-        self.betaratiointime_arr = self.betaratiointime.to_numpy().T
-        self.betaratiointime_baseline = self.betaratiointime_arr[:, 0]
+        #self.betaratiointime_arr = self.beta_ratio.to_numpy().T
+        self.betaratiointime_baseline = self.beta_ratio
 
         self.x0_ag = self.update_to_ag(setup)
 
@@ -98,7 +94,7 @@ class OCParameters:
         data = np.repeat(beta_initial[:, np.newaxis], setup.ndays, axis=1)
         data = data*beta_mult
 
-        self.betaratiointime = pd.DataFrame(data.T, columns=self.betaratiointime.columns,
+        self.betaratiointime = pd.DataFrame(data.T, columns=np.arange(setup.nnodes),
                                             index=setup.model_days)
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
 
@@ -113,7 +109,7 @@ class OCParameters:
 
 
 
-def get_parameters_from_matlab(eng, s, model_size, model_days):
+def get_parameters_from_matlab(eng, s, model_size):
     p = {}  # 1D parameters
     p['deltaE'] = eng.eval('deltaE')
     p['deltaP'] = eng.eval('deltaP')
@@ -146,14 +142,15 @@ def get_parameters_from_matlab(eng, s, model_size, model_days):
                                    x0_matlab[107 * R + i],
                                    np.zeros_like(x0_matlab[107 * R + i])]
 
-    beta_ratio = np.array(eng.eval('beta_ratio'))[:model_size]
-    beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=model_days, columns=np.arange(s.nnodes))
-    betaratiointime = beta_ratio_ts.resample('1D').mean()
+    beta_ratio = np.squeeze(np.array(eng.eval('beta_ratio'))[:model_size])
+    print(beta_ratio.shape)
+    #beta_ratio_ts = pd.DataFrame(beta_ratio.T, index=matlab_model_days, columns=np.arange(s.nnodes))
+    #betaratiointime = beta_ratio_ts.resample('1D').mean()
 
     mobile_frac = np.array(eng.eval('V.p'))[:model_size].flatten()
     mobility_matrix = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
 
-    return p, mobile_frac, mobility_matrix, betaratiointime, x0
+    return p, mobile_frac, mobility_matrix, beta_ratio, x0
 
 
 def params_to_vector(p):

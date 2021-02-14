@@ -3,7 +3,7 @@ tstart=tic;
 %parallel_pool=gcp('nocreate');
 
 %% load parameters for DA
-load 'state_par20210104_new.mat' % load model states and parameters
+%load 'state_par20210104_new.mat' % load model states and parameters
 load 'state_par20210111_new.mat'
 % load('beta_ratio.mat','beta_ratio') ; % load beta scenario
 %load('Vdoses.mat','Vdoses');  % load vaccination
