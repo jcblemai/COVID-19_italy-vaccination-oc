@@ -108,6 +108,5 @@ if __name__ == '__main__':
                    control_initial=control_initial,
                    mob_initial=mob,
                    scenario_name=f'{outdir}{prefix}-{objective}-opt{nnodes}')
-        break
 
         ocp.solveOCP()
