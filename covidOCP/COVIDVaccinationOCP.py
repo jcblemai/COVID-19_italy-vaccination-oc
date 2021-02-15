@@ -165,7 +165,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     foi = mob / mob_scaling + foi_ii
     rhs = [None] * nx
     vaccrate = 0
-    rhs[0] = -(foi + vaccrate) * S + gammaV * V  # S
+    rhs[0] = -(foi + vaccrate) * S #+ gammaV * V  # S
     rhs[1] = foi * S - deltaE * E  # E
     rhs[2] = deltaE * E - deltaP * P  # P
     rhs[3] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
@@ -262,7 +262,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
             x_[P] -= vaccrate * Pk[i]
             x_[A] -= vaccrate * Ak[i]
             x_[R] -= vaccrate * Rk[i]
-            x_[V] += vaccrate
+            x_[V] += controls[i, k]
 
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
@@ -376,7 +376,7 @@ class COVIDVaccinationOCP:
         x_[2] -= vaccrate * states['P']
         x_[4] -= vaccrate * states['A']
         x_[7] -= vaccrate * states['R']
-        x_[8] += vaccrate
+        x_[8] += controls['v']
 
         ell = 0.
         for k in range(n_int_steps):

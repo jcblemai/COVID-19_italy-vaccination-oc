@@ -17,8 +17,8 @@ ocp = None
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=26, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--objective", "objective", type=str, default='infection', show_default=True,
@@ -108,5 +108,6 @@ if __name__ == '__main__':
                    control_initial=control_initial,
                    mob_initial=mob,
                    scenario_name=f'{outdir}{prefix}-{objective}-opt{nnodes}')
+        break
 
         ocp.solveOCP()

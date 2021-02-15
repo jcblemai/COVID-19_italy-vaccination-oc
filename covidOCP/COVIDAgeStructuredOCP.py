@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 from tqdm import tqdm
 import pickle
+import copy
 from timeit import default_timer as timer
 
 # if "Agg" not in mpl.get_backend():
@@ -25,15 +26,11 @@ ag_death_mult = {'Y': .01, 'M': .3, 'O': 4}
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
-    S, E, P, I, A, Q, H, R, V = [x[i * nx + S] for i in range(nc)], [x[i * nx + E] for i in range(nc)], [x[i * nx + P]
-                                                                                                         for i in
-                                                                                                         range(nc)], \
-                                [x[i * nx + I] for i in range(nc)], [x[i * nx + A] for i in range(nc)], [x[i * nx + Q]
-                                                                                                         for i in
-                                                                                                         range(nc)], \
-                                [x[i * nx + H] for i in range(nc)], [x[i * nx + R] for i in range(nc)], [x[i * nx + V]
-                                                                                                         for i in
-                                                                                                         range(nc)]
+    S, E, P, I, A, Q, H, R, V = [x[i * nx + S] for i in range(nc)], [x[i * nx + E] for i in range(nc)], \
+                                [x[i * nx + P] for i in range(nc)], [x[i * nx + I] for i in range(nc)], \
+                                [x[i * nx + A] for i in range(nc)], [x[i * nx + Q] for i in range(nc)], \
+                                [x[i * nx + H] for i in range(nc)], [x[i * nx + R] for i in range(nc)], \
+                                [x[i * nx + V] for i in range(nc)]
 
     deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = p[0], p[1], p[2], p[3], \
                                                                                                p[4], p[5], p[6], p[7], \
@@ -57,7 +54,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     # v = u[0]
     for ag_id, ag in enumerate(ages_names):
         vaccrate = 0
-        rhs[0 + nx * ag_id] = -(foi + vaccrate) * S[ag_id] + gammaV * V[ag_id]  # S
+        rhs[0 + nx * ag_id] = -(foi + vaccrate) * S[ag_id] #+ gammaV * V[ag_id]  # S
         rhs[1 + nx * ag_id] = foi * S[ag_id] - deltaE * E[ag_id]  # E
         rhs[2 + nx * ag_id] = deltaE * E[ag_id] - deltaP * P[ag_id]  # P
         rhs[3 + nx * ag_id] = sigma * deltaP * P[ag_id] - (eta + gammaI) * I[ag_id]  # I
@@ -166,7 +163,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                 x_[ag_id][P] -= vaccrate * Pk[ag_id][i]
                 x_[ag_id][A] -= vaccrate * Ak[ag_id][i]
                 x_[ag_id][R] -= vaccrate * Rk[ag_id][i]
-                x_[ag_id][V] += vaccrate #* Sk[ag_id][i]
+                x_[ag_id][V] += controls[i, k, ag_id] #* Sk[ag_id][i]
 
             p_foi = [C_foi[i], parameters.params_structural['betaP0'], betaR[i],
                      parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']]
@@ -293,18 +290,20 @@ class COVIDVaccinationOCP:
         # x_ = states.cat
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
+        self.x_1 = copy.copy(x_)
         for ag_id, ag in enumerate(ages_names):
             VacPpl = states[f'{ag}', 'S'] + states[f'{ag}', 'E'] + states[f'{ag}', 'P'] + states[f'{ag}', 'A'] + states[f'{ag}', 'R']
 
-            vaccrate = controls[f'v{ag}'] / (VacPpl + 1e-10)
+            vaccrate = controls[f'v{ag}'] / VacPpl # + 1e-10)
 
             x_[0 + nx * ag_id] -= vaccrate * states[f'{ag}', 'S']
             x_[1 + nx * ag_id] -= vaccrate * states[f'{ag}', 'E']
             x_[2 + nx * ag_id] -= vaccrate * states[f'{ag}', 'P']
             x_[4 + nx * ag_id] -= vaccrate * states[f'{ag}', 'A']
             x_[7 + nx * ag_id] -= vaccrate * states[f'{ag}', 'R']
-            x_[8 + nx * ag_id] += vaccrate #* states[f'{ag}', 'S']
+            x_[8 + nx * ag_id] += controls[f'v{ag}'] #* states[f'{ag}', 'S']
 
+        self.x_2 = copy.copy(x_)
         ell = 0.
         for k in range(n_int_steps):
             x_, ell_ = rk4_step(x_, u_, covar, params, pop_nodeSX, p_foiSX)
