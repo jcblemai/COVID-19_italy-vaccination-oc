@@ -8,10 +8,10 @@ import pandas as pd
 def pick_scenario(setup, scn_id):
     if setup.nnodes == 107:
         scenarios_specs = {
-            'vaccpermonthM': [3, 15, 150],  # ax.set_ylim(0.05, 0.4)
+            'vaccpermonthM': [.3, 1.5, 3, 5, 15],  # ax.set_ylim(0.05, 0.4)
             # 'vacctotalM': [2, 5, 10, 15, 20],
-            'newdoseperweek': [125000, 250000, 479700, 1e6],
-            'epicourse': ['U', 'L']  # 'U'
+            'newdoseperweek': [12500, 25000,  77970, 179700, 479700, 1e6, 2e6],
+            'epicourse': ['U']  # 'U'
         }
     elif setup.nnodes == 10:
         scenarios_specs = {
