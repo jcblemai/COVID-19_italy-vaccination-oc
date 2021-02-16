@@ -442,9 +442,10 @@ class COVIDVaccinationOCP:
         # 'f' : is the objective function of 'x', that we ought to minize
         # 'g' : is a function that goes lbg < g(x,p) < ubg. If you want equality
         #     constraint then ubg = lbg = the number yoiu want it to be.
+        print(f)
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
         self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
-        print(f'DONE in {timer() - tsnlf:.1f} s')
+        print(f'DONE in {timer() - tsnlf:.1f} s')  # Check here
 
         # print('-----> Building Jacobian function...', end='')
         # self.nlpJac = self.nlpFun.factory('nlpJac', ['i0', 'i1'], ['jac:o1:i0'])
@@ -457,6 +458,7 @@ class COVIDVaccinationOCP:
         # options['ipopt']["print_level"] = 12
         options['ipopt']["max_iter"] = 10000  # prevent of for beeing clogged in a good scenario
         options['ipopt']["print_info_string"] = "yes"
+        #options['ipopt']["derivative_test"] = "second-order"
 
         self.solver = ca.nlpsol('solver', "ipopt", nlp, options)
         print(f'DONE in {timer() - tsbs:.1f} s')

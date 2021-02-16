@@ -17,7 +17,7 @@ ocp = None
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -88,7 +88,7 @@ if __name__ == '__main__':
         for k in range(N):
             for nd in range(M):
                 for ag_id in range(nc):
-                    control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 10
+                    control_initial[nd, k, ag_id] = 0 # control_initial_all[nd, k] / 300
 
         results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,
