@@ -17,8 +17,8 @@ ocp = None
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-t", "--ndays", "ndays", default=30, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--objective", "objective", type=str, default='infection', show_default=True,
@@ -79,16 +79,34 @@ if __name__ == '__main__':
                                                                             setup=setup,
                                                                             parameters=p,
                                                                             controls=control_initial,
-                                                                           save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}-nc',
+                                                                            save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}-nc',
                                                                             method='rk4',
                                                                             n_rk4_steps=n_int_steps)
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial_all = build_scenario(setup, scenario, strategy=yell.sum(axis=1))
-        control_initial = np.zeros((M, N, nc))
+        control_initial = np.zeros((M, N, nc))*10
+
+        if objective == 'infection':
+            ag_id_to_vacc = 1
+            cat_to_vacc = 'M'
+        elif objective == 'death':
+            ag_id_to_vacc = 2
+            cat_to_vacc = 'O'
+
+        unvac_nd = np.copy(setup.pop_node_ag[:,ag_id_to_vacc])* .7
+        nv = results[results['cat'] == cat_to_vacc]
+        incid = nv[nv['comp'].isin(['yell'])].groupby('place').sum()
+        incid.sort_values('value', ascending=False, inplace=True)
+        stockpile = 0
         for k in range(N):
-            for nd in range(M):
-                for ag_id in range(nc):
-                    control_initial[nd, k, ag_id] = control_initial_all[nd, k] / 30
+            stockpile += delivery_national[k]
+            for nodename in incid.sort_values('value', ascending=False).index:
+                nd = setup.ind2name.index(nodename)
+                to_allocate = maxvaccrate_regional[nd, k]
+                to_allocate = min(to_allocate, maxvaccrate_regional[nd, k], unvac_nd[nd], stockpile)
+                control_initial[nd, k, ag_id_to_vacc] = to_allocate
+                stockpile -= to_allocate
+                unvac_nd[nd] -= to_allocate
 
         results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,

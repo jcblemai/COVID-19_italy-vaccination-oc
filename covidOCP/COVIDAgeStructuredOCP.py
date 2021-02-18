@@ -442,7 +442,7 @@ class COVIDVaccinationOCP:
         # 'f' : is the objective function of 'x', that we ought to minize
         # 'g' : is a function that goes lbg < g(x,p) < ubg. If you want equality
         #     constraint then ubg = lbg = the number yoiu want it to be.
-        print(f)
+
         nlp = {'x': self.Vars, 'p': self.Params, 'f': f, 'g': self.g}
         self.nlpFun = ca.Function('nlpFun', [self.Vars, self.Params], [f, self.g])
         print(f'DONE in {timer() - tsnlf:.1f} s')  # Check here
