@@ -3,9 +3,9 @@
 #SBATCH --ntasks-per-node 1  # MPI sense -> just 1.
 #SBATCH --cpus-per-task 36   # No more than the number of CPU in a node. CPU <- coeur dans slurm
 #SBATCH --mem 180G          # Per node
-#SBATCH --time 15-0          #J-H:m:s
+#SBATCH --time 7-0          #J-H:m:s
 #SBATCH --array=0-11          # Index are choosen by me (can relaunch) before 0-1
-#SBATCH --qos=fortnight           # Echo is authorized to launch week-long job
+#SBATCH --qos=week           # Echo is authorized to launch week-long job
 
 N=${SLURM_ARRAY_TASK_ID}
 

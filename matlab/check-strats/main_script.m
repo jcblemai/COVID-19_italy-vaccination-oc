@@ -10,8 +10,8 @@ load 'state_par20210111_new.mat'
 % load('timesV180.mat','timesV');  % load vaccination
 
 %% select initial beta for each realization
-beta_red_in=squeeze(beta_r(:,2,:)); % matrix with ensemble of initial betas (100 X 107)
-time_red_in=time_b(2);
+beta_red_in=beta_r; %squeeze(beta_r(:,2,:)); % matrix with ensemble of initial betas (100 X 107)
+time_red_in=time_b;
 
 NSample=size(x0_real_out,1);
 %NSample=10;

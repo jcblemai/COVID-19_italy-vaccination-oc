@@ -17,8 +17,8 @@ ocp = None
 nc = 1
 
 @click.command()
-@click.option("-s", "--scenario_id", "scn_ids", default=0, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
+@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -69,6 +69,7 @@ if __name__ == '__main__':
         ---> Saving results to prefix: {prefix}""")
 
         p.apply_epicourse(setup, scenario['beta_mult'])
+        p.prune_mobility(setup, mob_prun=0.00005)
 
         control_initial = np.zeros((M, N))
 

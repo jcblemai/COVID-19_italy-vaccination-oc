@@ -512,6 +512,8 @@ class COVIDVaccinationOCP:
         # options['ipopt']["print_level"] = 12
         options['ipopt']["max_iter"] = 10000
         options['ipopt']["print_info_string"] = "yes"
+        #options['ipopt']["print_level"] = 12
+        #options['ipopt']["ma86_print_level"] = 12  # Never uncomment, makes it write Gb of outputs
         #options['ipopt']["derivative_test"] = "second-order"
         if show_steps:
             self.callback = PlotIterates('plot_iterates', self.Vars.size, self.g.size, self.Params.size, [0, 1], N + 1,

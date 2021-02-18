@@ -129,7 +129,7 @@ x_out=x(il,:);
         %assumption. class I do not move
         FoI=CS*((CS'*(beta0*beta_red.*(epsilonP*P+epsilonA*A))+epsilonI*beta0*beta_red.*I)./Nmob).*S;
         
-        dSdt=-FoI+gammaV*VV;
+        dSdt=-FoI;%+gammaV*VV;
         dEdt=FoI-deltaE*E;
         dPdt=deltaE*E-deltaP*P;
         dIdt=sigma*deltaP*P-(eta+gammaI)*I; % +alphaI
@@ -140,7 +140,7 @@ x_out=x(il,:);
         dRRdt=gammaH*H;
         dDdt=alphaH*H;
         dcumHdt=VfracH*eta*I;
-        dVdt=-gammaV*VV;
+        dVdt=0;%-gammaV*VV;
         dcumE=FoI;
         
         dxdt=[dSdt; dEdt; dPdt; dIdt; dAdt; dQdt; dHdt; dRdt; dRRdt; dDdt; dcumHdt;dcumE;dVdt;];

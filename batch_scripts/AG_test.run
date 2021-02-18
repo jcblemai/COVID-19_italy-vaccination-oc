@@ -11,7 +11,7 @@ N=${SLURM_ARRAY_TASK_ID}
 export MDL_DAYS=90
 export MDL_NNODES=107
 export OBJ="death"
-export F_DIR="test_run_AG"
+export F_DIR="test_run_AG/"
 export F_PREFIX="ag-test"
 mkdir -p $F_DIR
 
