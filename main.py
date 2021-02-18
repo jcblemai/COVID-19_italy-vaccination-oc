@@ -69,7 +69,7 @@ if __name__ == '__main__':
         ---> Saving results to prefix: {prefix}""")
 
         p.apply_epicourse(setup, scenario['beta_mult'])
-        p.prune_mobility(setup, mob_prun=0.00005)
+        #p.prune_mobility(setup, mob_prun=0.00005)
 
         control_initial = np.zeros((M, N))
 

@@ -11,7 +11,7 @@ from scenarios_utils import pick_scenario, build_scenario
 nx, nc = 9, 3
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future'
-n_int_steps = 25
+n_int_steps = 50
 ocp = None
 
 
