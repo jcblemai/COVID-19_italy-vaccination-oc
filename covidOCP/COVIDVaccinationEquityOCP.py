@@ -480,8 +480,8 @@ class COVIDVaccinationOCP:
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
                 #vaccines[k] = vaccines[k] + self.Vars['u', i, k, 'v'] #* (N + 1) / N
-                equity_vmax[k].append(self.Vars['equity_bnd', k, 'vmax'] - self.Vars['u', i, k, 'v'])
-                equity_vmin[k].append(self.Vars['u', i, k, 'v'] - self.Vars['equity_bnd', k, 'vmin'])
+                equity_vmax[k].append(self.Vars['equity_bnd', k, 'vmax'] - self.Vars['u', i, k, 'v']/self.setup.pop_node[i])
+                equity_vmin[k].append(self.Vars['u', i, k, 'v']/self.setup.pop_node[i] - self.Vars['equity_bnd', k, 'vmin'])
 
             vaccines[k] = sum([sum(self.Vars['u', :, j, 'v']) for j in range(k+1)])
             equity_tot[k] = 2 * self.Vars['equity_bnd', k, 'vmin'] - self.Vars['equity_bnd', k, 'vmax']

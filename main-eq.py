@@ -17,8 +17,8 @@ nc = 1
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=0, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
-@click.option("-t", "--ndays", "ndays", default=90, envvar="OCP_NDAYS", help="Number of days to run")
+@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-t", "--ndays", "ndays", default=30, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
 @click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
@@ -86,6 +86,7 @@ if __name__ == '__main__':
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario, strategy=np.ones(M))
         control_initial = np.zeros((M, N))
+
         #results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
         #                                                                  setup=setup,
         #                                                                  parameters=p,
