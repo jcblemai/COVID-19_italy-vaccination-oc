@@ -72,7 +72,7 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
 
 def frhs_integrate(y, p, foi, pop_node, p_foi=[0] * 5):
     y, ell = rhs_py(t=0, x=y, u=0, cov=0, p=p, mob=foi, pop_node=pop_node, p_foi=p_foi)
-    return np.array(y), ell[1]
+    return np.array(y), np.array(ell)
 
 
 def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
@@ -105,7 +105,8 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     S, E, P, I, A, Q, H, R, V = np.arange(nx)
 
     y = np.zeros((M, N + 1, nc, nx))
-    yell = np.zeros((M, N + 1))
+    yell_death = np.zeros((M, N + 1))
+    yell_infection = np.zeros((M, N + 1))
     mob = np.zeros((M, N + 1))
 
     for cp, name in enumerate(states_names):
@@ -178,11 +179,27 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
             ell += ell_
 
             y[i, k + 1] = x_.reshape((nc, nx))
-            yell[i, k + 1] = ell
+            yell_death[i, k + 1] = ell[0]
+            yell_infection[i, k + 1] = ell[1]
 
     results = pd.DataFrame(columns=['date', 'comp', 'place', 'cat', 'value', 'placeID'])
 
     for nd in range(M):
+        results = pd.concat([results, pd.DataFrame.from_dict(
+                    {'value': yell_infection[nd],
+                     'date': setup.model_days,
+                     'place': setup.ind2name[nd],
+                     'cat': 'all',
+                     'placeID': int(nd),
+                     'comp': 'yell_infection'}),
+                pd.DataFrame.from_dict(
+                    {'value': yell_death[nd],
+                     'date': setup.model_days,
+                     'place': setup.ind2name[nd],
+                     'cat': 'all',
+                     'placeID': int(nd),
+                     'comp': 'yell_death'})
+                ])
         for ag_id, ag in enumerate(ages_names):
             results = pd.concat(
                 [results, pd.DataFrame.from_dict(
@@ -191,14 +208,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                      'place': setup.ind2name[nd],
                      'cat':ages_names[ag_id],
                      'placeID': int(nd),
-                     'comp': 'vacc'}),
-                          pd.DataFrame.from_dict(
-                    {'value': yell[nd],
-                     'date': setup.model_days,
-                     'place': setup.ind2name[nd],
-                     'cat': ages_names[ag_id],
-                     'placeID': int(nd),
-                     'comp': 'yell'})
+                     'comp': 'vacc'})
                  ])
             for i, st in enumerate(states_names):
                 results = pd.concat(
@@ -213,7 +223,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     if save_to is not None:
         results.to_csv(f'{save_to}.csv', index=False)
 
-    return results, y, yell, mob
+    return results, y, yell_death, yell_infection, mob
 
 
 class COVIDVaccinationOCP:

@@ -140,7 +140,7 @@ x_out=x(il,:);
         dRRdt=gammaH*H;
         dDdt=alphaH*H;
         dcumHdt=VfracH*eta*I;
-        dVdt=0;%-gammaV*VV;
+        dVdt=-gammaV*VV;
         dcumE=FoI;
         
         dxdt=[dSdt; dEdt; dPdt; dIdt; dAdt; dQdt; dHdt; dRdt; dRRdt; dDdt; dcumHdt;dcumE;dVdt;];

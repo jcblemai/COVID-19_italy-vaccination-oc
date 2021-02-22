@@ -75,7 +75,7 @@ if __name__ == '__main__':
 
         control_initial = np.zeros((M, N, nc))
 
-        results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
+        results, state_initial, yell_death, yell_infection, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,
                                                                             parameters=p,
                                                                             controls=control_initial,
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
         unvac_nd = np.copy(setup.pop_node_ag[:,ag_id_to_vacc])* .7
         nv = results[results['cat'] == cat_to_vacc]
-        incid = nv[nv['comp'].isin(['yell'])].groupby('place').sum()
+        incid = nv[nv['comp'].isin([f'yell_{objective}'])].groupby('place').sum()
         incid.sort_values('value', ascending=False, inplace=True)
         stockpile = 0
         for k in range(N):
@@ -108,7 +108,7 @@ if __name__ == '__main__':
                 stockpile -= to_allocate
                 unvac_nd[nd] -= to_allocate
 
-        results, state_initial, yell, mob = COVIDAgeStructuredOCP.integrate(N,
+        results, state_initial, yell_death, yell_infection, mob = COVIDAgeStructuredOCP.integrate(N,
                                                                             setup=setup,
                                                                             parameters=p,
                                                                             controls=control_initial,
