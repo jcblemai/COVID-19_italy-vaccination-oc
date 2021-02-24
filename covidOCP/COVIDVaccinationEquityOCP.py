@@ -591,8 +591,10 @@ class COVIDVaccinationOCP:
             for nd in range(self.M):
                 init['u', nd, k, 'v'] = control_initial[nd, k]
                 init['u', nd, k, 'mob'] = mob_initial[nd, k]
-            init['equity_bnd', k, 'vmin'] = control_initial.min(axis=0).cumsum()[k]
-            init['equity_bnd', k, 'vmax'] = control_initial.max(axis=0).cumsum()[k]
+            init['equity_bnd', k, 'vmin'] = (control_initial[:, k]/self.setup.pop_node).min()
+            init['equity_bnd', k, 'vmax'] = (control_initial[:, k]/self.setup.pop_node).max()
+        print((np.array(init['equity_bnd', :, 'vmax'])/np.array(init['equity_bnd', :, 'vmin'])).max(),
+              (np.array(init['equity_bnd', :, 'vmax'])/np.array(init['equity_bnd', :, 'vmin'])).min())
 
         self.arg = {'lbg': lbg,
                     'ubg': ubg,

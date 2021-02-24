@@ -85,14 +85,35 @@ if __name__ == '__main__':
                                                           show_steps=False)
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario, strategy=np.ones(M))
-        control_initial = np.zeros((M, N))
 
-        #results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
-        #                                                                  setup=setup,
-        #                                                                  parameters=p,
-        #                                                                  controls=control_initial,
-        #                                                                  save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}',
-        #                                                                  n_rk4_steps=n_int_steps)
+        control_initial = np.zeros((M, N))
+        stockpile = 0
+        strategy = yell.sum(axis=1)  # scale maxvaccrate over stockpile and allocate
+        unvac_nd = np.copy(setup.pop_node) * .8
+
+        for k in range(N):
+            stockpile += delivery_national[k]
+            divider = 1
+            if k % 7 < 3:
+                divider = 3.5
+            today_amt_pp = ((stockpile/divider*setup.pop_node/setup.pop_node.sum())/setup.pop_node).min()
+            print(k, today_amt_pp, stockpile)
+            today_amt_pp = min(today_amt_pp,
+                               (unvac_nd/setup.pop_node).min(),
+                               (maxvaccrate_regional[:,k]/setup.pop_node).min()) * .95
+
+            for nd in range(M):
+                to_allocate = today_amt_pp*setup.pop_node[nd] #, unvac_nd[nd])  min(
+                control_initial[nd, k] = to_allocate
+                stockpile -= to_allocate
+                unvac_nd[nd] -= to_allocate
+
+        results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+                                                                          setup=setup,
+                                                                          parameters=p,
+                                                                          controls=control_initial,
+                                                                          save_to=f'{outdir}{prefix}-int-{nnodes}_{ndays}',
+                                                                          n_rk4_steps=n_int_steps)
 
         if optimize:
             ocp.update(parameters=p,
