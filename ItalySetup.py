@@ -8,7 +8,7 @@ import geopandas as gpd
 plt.ion()
 
 
-class ItalySetup:
+class ItalySetupProvinces:
     def __init__(self, nnodes='full', ndays=45, when='future'):  # small (M=10),  medium or large (M=68)
 
         geodata = pd.read_csv('italy-data/geodata.csv')
@@ -64,7 +64,7 @@ class ItalySetup:
         agestrat['Totale'] = agestrat['Totale Maschi'] + agestrat['Totale Femmine']
         agestrat = agestrat[agestrat['Età'] != 'Totale']
         agestrat['Category'] = ''
-        agestrat.loc[agestrat['Età'].astype(int) < 16, 'Category'] = '0-16'
+        agestrat.loc[agestrat['Età'].astype(int) < 16, 'Category'] = '0-15'
         agestrat.loc[agestrat['Età'].astype(int) > 65, 'Category'] = '65+'
         agestrat.loc[agestrat['Category'] == '', 'Category'] = '16-65'
         agestrat = agestrat[['Category', 'Codice provincia', 'Totale', 'Provincia']]
@@ -73,20 +73,62 @@ class ItalySetup:
         agestrat = agestrat.pivot(index='Codice provincia', columns='Category', values='Totale')
         self.pop_node_ag = agestrat.to_numpy()
 
-        print(f'Loaded Italy Setup with {self.nnodes} nodes.')
+        print(f'Loaded Italy Provincial Setup with {self.nnodes} nodes.')
 
+class ItalySetupRegions:
+    def __init__(self, nnodes='full', ndays=45, when='future'):  # small (M=10),  medium or large (M=68)
+
+        setup_prov = ItalySetupProvinces('full')
+
+        self.nnodes = 20
+        shp = gpd.read_file('italy-data/shp/Reg01012020_g_WGS84.shp').sort_values('COD_REG')
+        shp['name'] = shp['DEN_REG']
+        self.ind2name = list(shp['DEN_REG'])
+        self.pop_node = np.zeros(self.nnodes)
+        self.pop_node_ag = np.zeros((self.nnodes, 3))
+        shp['mobile_fraction'] = 0
+        shp['population'] = 0
+        self.mobility = np.zeros((self.nnodes, self.nnodes))
+
+        for i, row in setup_prov.shp.iterrows():
+            idx = row['COD_REG'] - 1
+            self.pop_node[idx] += row['population']
+            self.pop_node_ag[idx,:] += setup_prov.pop_node_ag[i, :]
+            shp['population'] += row['population']
+            shp['mobile_fraction'] += row['mobile_fraction'] * row['population']
+            for j, row_j in setup_prov.shp.iterrows():
+                jdx = row_j['COD_REG'] - 1
+                self.mobility[idx, jdx] += setup_prov.mobility[i, j] * row['population']
+
+        self.mobility = (self.mobility.T / self.pop_node).T  # TO CHECK yes: divide m[0,x] by pop[0]
+        shp['mobile_fraction'] = shp['mobile_fraction'] / shp['population']
+        self.shp = shp
+
+        self.start_date = datetime.date(2021, 1, 11)
+        self.end_date = self.start_date + datetime.timedelta(days=ndays-1)
+        self.model_days = pd.date_range(self.start_date, self.end_date, freq='1D')
+        self.mobility_ts = pd.DataFrame(1, columns=np.arange(self.nnodes), index=self.model_days)
+        self.mobintime = self.mobility_ts.resample('1D').mean()
+        self.mobintime_arr = self.mobintime.to_numpy().T
+
+        self.pos_node = np.zeros((self.nnodes, 2))
+        self.pos_node[:, 0] = self.shp.centroid.x
+        self.pos_node[:, 1] = self.shp.centroid.y
+
+        print(f'Loaded Italy Regionals Setup with {self.nnodes} nodes.')
 
 
 if __name__ == '__main__':
+    pass
     # Variables passed to R
-    s = ItalySetup(13)
-    ind2name = s.ind2name
-    mobility = s.mobility
-    ic = s.ic
-    ind_to_plot = s.ind_to_plot
-    pop_node = s.pop_node
-    pos_node = s.pos_node
-    nnodes = s.nnodes
+    #s = ItalySetupProvinces('full')
+    #ind2name = s.ind2name
+    #mobility = s.mobility
+    #ic = s.ic
+    #ind_to_plot = s.ind_to_plot
+    #pop_node = s.pop_node
+    #pos_node = s.pos_node
+    #nnodes = s.nnodes
 
 # print(ocp.arg['p']['p','scale_v']*sum( y**2 for x in opt['u',:,:,'v'] for y in x ))
 # print(ocp.arg['p']['p','scale_ell']*( y for x in opt['x',:,:-1,'I'] for y in x ))

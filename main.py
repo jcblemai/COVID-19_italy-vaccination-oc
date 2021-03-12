@@ -1,5 +1,5 @@
 import numpy as np
-from ItalySetup import ItalySetup
+from ItalySetup import ItalySetupProvinces
 from covidOCP import COVIDVaccinationOCP as COVIDVaccinationOCP
 from covidOCP import COVIDAgeStructuredOCP as COVIDAgeStructuredOCP
 from covidOCP import COVIDParametersOCP
@@ -43,7 +43,7 @@ if __name__ == '__main__':
     # scn_ids = np.arange(18)
 
     # All arrays here are (nnodes, ndays, (nx))
-    setup = ItalySetup(nnodes, ndays, when)
+    setup = ItalySetupProvinces(nnodes, ndays, when)
     M = setup.nnodes
     N = setup.ndays - 1
 

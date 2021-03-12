@@ -19,8 +19,8 @@ mob_scaling = 1e7
 nc = 3  # Number of age classes
 ages_names = ['Y', 'M', 'O']
 
-ag_trans_mult = {'Y': .9,  'M': 1.5, 'O': .4}
-ag_death_mult = {'Y': .01, 'M': .3, 'O': 4}
+ag_trans_mult = {'Y': 1,  'M': 1, 'O': 1}
+ag_death_mult = {'Y': 1, 'M': 1, 'O': 1}
 
 
 def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
