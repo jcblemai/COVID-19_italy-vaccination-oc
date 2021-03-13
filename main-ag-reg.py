@@ -1,5 +1,5 @@
 import numpy as np
-from ItalySetup import ItalySetupProvinces
+from ItalySetup import ItalySetupRegions
 from covidOCP import COVIDAgeStructuredOCP as COVIDAgeStructuredOCP
 from covidOCP import COVIDParametersOCP
 import pickle
@@ -17,7 +17,7 @@ ocp = None
 
 @click.command()
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
-@click.option("-n", "--nnodes", "nnodes", default=10, envvar="OCP_NNODES", help="Spatial model size to run")
+@click.option("-n", "--nnodes", "nnodes", default=20, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=30, envvar="OCP_NDAYS", help="Number of days to run")
 @click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
@@ -33,6 +33,7 @@ def cli(scn_ids, nnodes, ndays, use_matlab, objective, file_prefix, outdir, opti
         scn_ids = [int(scn_ids)]
     return scn_ids, nnodes, ndays, use_matlab, objective, file_prefix, outdir, optimize
 
+
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
@@ -40,7 +41,7 @@ if __name__ == '__main__':
     os.makedirs(outdir, exist_ok=True)
 
     # All arrays here are (nnodes, ndays, (nx))
-    setup = ItalySetupProvinces(nnodes, ndays, when)
+    setup = ItalySetupRegions(20, ndays, when)
     M = setup.nnodes
     N = setup.ndays - 1
 

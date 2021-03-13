@@ -12,6 +12,7 @@ class ItalySetupProvinces:
     def __init__(self, nnodes='full', ndays=45, when='future'):  # small (M=10),  medium or large (M=68)
 
         geodata = pd.read_csv('italy-data/geodata.csv')
+        self.scale = 'Provinces'
 
         if nnodes == 'full':
             nnodes = len(geodata)
@@ -77,10 +78,10 @@ class ItalySetupProvinces:
 
 class ItalySetupRegions:
     def __init__(self, nnodes='full', ndays=45, when='future'):  # small (M=10),  medium or large (M=68)
-
         setup_prov = ItalySetupProvinces('full')
-
+        self.scale = 'Regions'
         self.nnodes = 20
+        self.ndays = ndays
         shp = gpd.read_file('italy-data/shp/Reg01012020_g_WGS84.shp').sort_values('COD_REG')
         shp['name'] = shp['DEN_REG']
         self.ind2name = list(shp['DEN_REG'])

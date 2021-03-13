@@ -6,19 +6,28 @@ import pandas as pd
 
 
 def pick_scenario(setup, scn_id):
-    if setup.nnodes == 107:
+
+    if setup.scale == 'Regions':
         scenarios_specs = {
             'vaccpermonthM': [3, 15, 150],  # ax.set_ylim(0.05, 0.4)
             # 'vacctotalM': [2, 5, 10, 15, 20],
             'newdoseperweek': [125000, 250000, 479700, 1e6, 1.5e6, 2e6],
             'epicourse': ['U', 'L']  # 'U'
         }
-    elif setup.nnodes == 10:
-        scenarios_specs = {
-            'newdoseperweek': [125000*10, 250000*10],
-            'vaccpermonthM': [14*10, 15*10],
-            'epicourse': ['U']  # 'U', 'L'
-        }
+    elif setup.scale == 'Provinces':
+        if setup.nnodes == 107:
+            scenarios_specs = {
+                'vaccpermonthM': [3, 15, 150],  # ax.set_ylim(0.05, 0.4)
+                # 'vacctotalM': [2, 5, 10, 15, 20],
+                'newdoseperweek': [125000, 250000, 479700, 1e6, 1.5e6, 2e6],
+                'epicourse': ['U', 'L']  # 'U'
+            }
+        elif setup.nnodes == 10:
+            scenarios_specs = {
+                'newdoseperweek': [125000*10, 250000*10],
+                'vaccpermonthM': [14*10, 15*10],
+                'epicourse': ['U']  # 'U', 'L'
+            }
 
     # Compute all permutatios
     keys, values = zip(*scenarios_specs.items())
