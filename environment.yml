@@ -42,8 +42,6 @@ dependencies:
   - ipython_genutils=0.2.0
   - jpeg=9b
   - json-c=0.13.1
-  - jupyter_client=6.1.7
-  - jupyter_core=4.7.0
   - kealib=1.4.7
   - kiwisolver=1.3.0
   - krb5=1.16.4
@@ -129,6 +127,4 @@ dependencies:
   - zeromq=4.3.3
   - zlib=1.2.11
   - zstd=1.3.7
-  - pip:
-    - matlabengineforpython==R2019b
 prefix: /Users/chadi/opt/miniconda3/envs/ocp-covid
