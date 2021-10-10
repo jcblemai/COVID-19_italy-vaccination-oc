@@ -36,7 +36,7 @@ class ItalySetupProvinces:
 
         if when == 'past':
             self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
-        elif when == 'future':
+        elif when == 'future' or when == 'future-mobintime':
             self.start_date = datetime.date(2021, 1, 11)  # fix lentgh
         self.end_date = self.start_date + datetime.timedelta(days=ndays-1)
 

@@ -9,7 +9,7 @@ nc = 3
 
 
 class OCParameters:
-    def __init__(self, setup, M, when, posterior_draw=102):
+    def __init__(self, setup, M, when, posterior_draw=100):
         self.M = M
 
         import matlab.engine
@@ -20,6 +20,12 @@ class OCParameters:
             eng.run('single_build.m', nargout=0)
         if when == 'future':
             eng.cd('matlab/data-assimilation/', nargout=0)
+            # The realization with the maximum infected at the end of the 3 months is realization 33.
+            # The realization with the median number of infected at the end of the 3 months is realization 24.
+            eng.workspace['i'] = posterior_draw
+            eng.run('minimal_interface.m', nargout=0)
+        if when == 'future-mobintime':
+            eng.cd('matlab/post-reviews-update/', nargout=0)
             # The realization with the maximum infected at the end of the 3 months is realization 33.
             # The realization with the median number of infected at the end of the 3 months is realization 24.
             eng.workspace['i'] = posterior_draw
