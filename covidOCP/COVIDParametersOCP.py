@@ -9,7 +9,7 @@ nc = 3
 
 
 class OCParameters:
-    def __init__(self, setup, M, when, posterior_draw=100):
+    def __init__(self, setup, M, when, posterior_draw=102):
         self.M = M
 
         import matlab.engine

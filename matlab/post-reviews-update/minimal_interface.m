@@ -4,6 +4,16 @@ load('results/state_par2020-12-15.mat')
 % Show dates
 % choosen realizatio is o
 
+PAR_real(101, :) = mean(PAR_real);
+PAR_real(102, :) = median(PAR_real);
+beta_r(101,:,:) =  mean(beta_r);
+beta_r(102,:,:) =  median(beta_r);
+x0_real(101,:) =  mean(x0_real);
+x0_real(102,:) =  median(x0_real);
+
+
+
+
 
 %%% things to check:
 PAR = PAR_real(i,:);
