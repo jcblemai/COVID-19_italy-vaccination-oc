@@ -4,6 +4,8 @@ load('results/state_par2020-12-15.mat')
 % Show dates
 % choosen realizatio is o
 
+beta_r = squeeze(beta_r(:,end,:));
+% @DP: added this and I use simulation 102 for the ocp[
 PAR_real(101, :) = mean(PAR_real);
 PAR_real(102, :) = median(PAR_real);
 beta_r(101,:,:) =  mean(beta_r);
@@ -11,9 +13,14 @@ beta_r(102,:,:) =  median(beta_r);
 x0_real(101,:) =  mean(x0_real);
 x0_real(102,:) =  median(x0_real);
 
+% Update log:
+% x0_real --> same shape
+% PAR_real --> same shape (but why so big ?)
+% beta_r from 102x107 to 102x7x107 mmh
 
-
-
+% agec: # of person in each province
+% mob_red_w: mobility % person to work
+% mob_red_d: days related to this
 
 %%% things to check:
 PAR = PAR_real(i,:);
