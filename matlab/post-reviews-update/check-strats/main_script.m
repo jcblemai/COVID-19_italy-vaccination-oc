@@ -1,28 +1,41 @@
+clear 
+close all
 tstart=tic;
 
 %parallel_pool=gcp('nocreate');
 
 %% load parameters for DA
 %load 'state_par20210104_new.mat' % load model states and parameters
-load 'state_par20210111_new.mat'
-% load('beta_ratio.mat','beta_ratio') ; % load beta scenario
-%load('Vdoses.mat','Vdoses');  % load vaccination
-% load('timesV180.mat','timesV');  % load vaccination
+%load 'state_par20210111_new.mat'
+%load 'input_20211012/google_data_and_ages.mat'
+load 'input_20211012/state_par2021-01-04.mat'
+load('beta_ratio.mat','beta_ratio') ; % load beta scenario
+load('Vdoses.mat','Vdoses');  % load vaccination
+load('timesV180.mat','timesV');  % load vaccination   
 
-%% select initial beta for each realization
-beta_red_in=beta_r; %squeeze(beta_r(:,2,:)); % matrix with ensemble of initial betas (100 X 107)
-time_red_in=time_b;
+% NOTE: timesV and Vdoses have different numbers of dates
 
-NSample=size(x0_real_out,1);
+
+NSample=size(x0_real,1);
 %NSample=10;
 V.NSample=NSample;
-x0_real=squeeze(x0_real_out(1:V.NSample,:,1)); % matrix with ensemble of initial states 
+x0_real=squeeze(x0_real(1:V.NSample,:,1)); % matrix with ensemble of initial states 
 x0_real(:,end+1:end+2*V.n)=zeros(V.NSample,2*V.n); % add cumulative exposed and vaccinated
+
+%% select initial beta for each realization
+indb=find(time_b>=time_x0,1,'first');
+beta_red_in=squeeze(beta_r(:,indb,:)); %squeeze(beta_r(:,2,:)); % matrix with ensemble of initial betas (100 X 107)
+time_red_in=time_b(indb);
+
+%% google mobility data
+indm=find(V.mob_red_d>=time_x0,1,'first');
+mob_red=(1+V.mob_red_w(indm+(1:length(beta_ratio)),:)/100);
+beta_ratio=(diag(beta_ratio)*mob_red)';
 
 clear x0_real_out
 %% set final time of the simulation 
 time_final=timesV(end);
-V.times=time_red_in:timesV(end)%+1;
+V.times=time_x0:timesV(end);%+1;
 
 V.gammaV = 0; %1 / (9 * 30); % loss of immunity from faccination
 n=V.n;
@@ -43,8 +56,11 @@ parfor cont_sample=1:V.NSample
     Vt.x0=squeeze(x0_real(cont_sample,:))';
     Vt.ProvBetaInc=1;
     % define time_model if tm==1
-    Vt.beta3_red_reg=(squeeze(beta_red_in(cont_sample,:))'*beta_ratio); %sequence of beta for current realization
+    %Vt.beta3_red_reg=(squeeze(beta_red_in(cont_sample,:))'*beta_ratio); %sequence of beta for current realization
+    Vt.beta3_red_reg=repmat(beta_red_in(cont_sample,:)',1,size(beta_ratio,2)).*beta_ratio; %sequence of beta for current realization
+    
     Vt.tbeta=Vt.times(1):(Vt.times(1)+length(beta_ratio));
+    
     out_exposed=zeros(n,length(Vt.times)-1);
     for tm=2:length(Vt.times)
         Vt.time_model=Vt.times(tm-1):Vt.times(tm);

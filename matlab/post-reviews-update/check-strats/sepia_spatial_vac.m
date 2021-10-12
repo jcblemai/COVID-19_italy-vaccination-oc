@@ -33,8 +33,8 @@ gammaA=Vt.gammaAgammaQ*gammaQ;
 beta0=PAR(1)/(1/deltaP + epsilonI*sigma/(gammaI + alphaI + eta) + epsilonA*(1-sigma)/gammaA);
 
 %variables for mobility reduction matrix
-mob=Vt.mob;
-tmob=Vt.tmob;
+mob=(1+Vt.mob_red_w'/100);
+tmob=Vt.mob_red_d;
 
 % variables for beta reduction
 
@@ -75,9 +75,9 @@ x_out=x(il,:);
         elseif t>=tbeta(end)
             beta_red=beta_p(:,end);
         else
-            ii=find(tbeta<t,1,'last');
-            m=(beta_p(:,ii+1)-beta_p(:,ii))/(tbeta(ii+1)-tbeta(ii));
-            beta_red=(t-tbeta(ii))*m+beta_p(:,ii);
+            ii=find(tbeta>=t,1,'first');
+            %m=(beta_p(:,ii+1)-beta_p(:,ii))/(tbeta(ii+1)-tbeta(ii));
+            beta_red=beta_p(:,ii);%(t-tbeta(ii))*m+beta_p(:,ii);
         end
         
         %compute mobility reduction
@@ -86,9 +86,9 @@ x_out=x(il,:);
         elseif t>tmob(end)
             mob_red=mob(:,end);
         else
-            ii=find(tmob<t,1,'first');
-            m=(mob(:,ii+1)-mob(:,ii))/(tmob(ii+1)-tmob(ii));
-            mob_red=(t-tmob(ii))*m+mob(:,ii);
+            ii=find(tmob>=t,1,'first');
+%            m=(mob(:,ii+1)-mob(:,ii))/(tmob(ii+1)-tmob(ii));
+            mob_red=mob(:,ii);%(t-tmob(ii))*m+mob(:,ii);
         end
         
         CS=(rS*Vp.*mob_red).*Vq;       %compute only CS
