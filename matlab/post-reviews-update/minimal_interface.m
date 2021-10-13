@@ -1,6 +1,6 @@
 
 %load('results_true/state_par20210104_new.mat')
-load('results/state_par2020-12-15.mat')
+load('check-strats/input_20211012/state_par2021-01-04.mat')
 % Show dates
 % choosen realizatio is o
 
