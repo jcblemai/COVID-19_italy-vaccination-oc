@@ -15,6 +15,7 @@ class OCParameters:
         import matlab.engine
 
         eng = matlab.engine.start_matlab()
+
         if when == 'past':
             eng.cd('matlab/geography-paper-master/', nargout=0)
             eng.run('single_build.m', nargout=0)
@@ -74,6 +75,7 @@ class OCParameters:
         self.betaratiointime_baseline = self.beta_ratio
 
         self.x0_ag = self.update_to_ag(setup)
+        self.when = when
 
     def prune_mobility(self, setup, mob_prun=0.0006):
         mobK = setup.mobintime.to_numpy().T[:, 0]
@@ -99,7 +101,8 @@ class OCParameters:
         beta_initial = self.betaratiointime_baseline
         data = np.repeat(beta_initial[:, np.newaxis], setup.ndays, axis=1)
         data = data*beta_mult
-
+        if self.when == 'future-mobintime':
+            data = data * setup.mobintime.to_numpy().T
         self.betaratiointime = pd.DataFrame(data.T, columns=np.arange(setup.nnodes),
                                             index=setup.model_days)
         self.betaratiointime_arr = self.betaratiointime.to_numpy().T
