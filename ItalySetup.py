@@ -35,9 +35,11 @@ class ItalySetupProvinces:
         self.ndays = ndays
 
         if when == 'past':
-            self.start_date = datetime.date(2020, 1, 20)  # fix lentgh
-        elif when == 'future' or when == 'future-mobintime':
-            self.start_date = datetime.date(2021, 1, 11)  # fix lentgh
+            self.start_date = datetime.date(2020, 1, 20)
+        elif when == 'future':
+            self.start_date = datetime.date(2021, 1, 11)
+        elif when == 'future-mobintime':
+            self.start_date = datetime.date(2021, 1, 4)
         self.end_date = self.start_date + datetime.timedelta(days=ndays-1)
 
         self.model_days = pd.date_range(self.start_date, self.end_date, freq='1D')
@@ -49,6 +51,12 @@ class ItalySetupProvinces:
         if when == 'future':
             self.mobility_ts = pd.DataFrame(1, columns=np.arange(len(self.mobility_ts.columns)),
                                             index=self.model_days)
+        elif when == 'future-mobintime':
+            import scipy.io
+            gmob = scipy.io.loadmat('matlab/post-reviews-update/check-strats/input_20211012/google_data_and_ages.mat')
+            dates = pd.date_range('15-02-2020', '23-07-2021', freq='1D')
+            mobility_ts = pd.DataFrame(gmob['mob_red_w'], columns=np.arange(107), index=dates)
+            self.mobility_ts = 1 + mobility_ts.loc[self.start_date:self.end_date, 0:self.nnodes-1]/100
 
         self.mobintime = self.mobility_ts.resample('1D').mean()
         self.mobintime_arr = self.mobintime.to_numpy().T
