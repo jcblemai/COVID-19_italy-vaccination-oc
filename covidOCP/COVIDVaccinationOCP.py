@@ -273,7 +273,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                     x_, ell_ = rk4_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
                 elif method == 'euler':
                     x_, ell_ = euler_integrate(x_, pvector, mob_ik, setup.pop_node[i], p_foi, dt)
-            ell += ell_
+                ell += ell_
 
             y[i, k + 1, :] = x_
             yell[i, k + 1] = ell
