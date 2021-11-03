@@ -1,6 +1,7 @@
-clear 
 close all
 tstart=tic;
+
+% just do the median realisation to compare
 
 %parallel_pool=gcp('nocreate');
 
@@ -9,18 +10,31 @@ tstart=tic;
 %load 'state_par20210111_new.mat'
 %load 'input_20211012/google_data_and_ages.mat'
 %load 'input_20211101/state_par2020-04-30.mat'
-load 'input_20211101/state_par2020-12-31.mat'
+load 'input_20211101/state_par2021-01-04.mat'
 
-load('beta_ratio.mat','beta_ratio') ; % load beta scenario
-load('Vdoses.mat','Vdoses');  % load vaccination
-load('timesV180.mat','timesV');  % load vaccination
+%save('beta_ratio_py.mat','beta_ratio') ; % load beta scenario
+%save('Vdoses_py.mat','Vdoses');  % load vaccination
+%save('timesV180_py.mat','timesV');  % load vaccination
+
+%load('beta_ratio_py.mat','beta_ratio') ; % load beta scenario
+%load('Vdoses_py.mat','Vdoses');  % load vaccination
+%load('timesV180_py.mat','timesV');  % load vaccination
 
 %beta_ratio=beta_ratio(end:-1:1)/1.5;
 
 % NOTE: timesV and Vdoses have different numbers of dates
+PAR_real(101, :) = mean(PAR_real);
+PAR_real(102, :) = median(PAR_real);
+beta_r(101,:,:) =  mean(beta_r);
+beta_r(102,:,:) =  median(beta_r);
+x0_real(101,:) =  mean(x0_real);
+x0_real(102,:) =  median(x0_real);
+
+PAR_real = PAR_real(102, :);
+beta_r = beta_r(102,:,:);
+x0_real =  x0_real(102,:);
 
 flag_age_classes=1;% 1 to compute also age classes; 0 otherwise
-
 %% temp
 load input_20211101/beta_red_out2021-01-30 % load all values of beta
 

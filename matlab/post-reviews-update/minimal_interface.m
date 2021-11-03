@@ -1,10 +1,14 @@
 
 %load('results_true/state_par20210104_new.mat')
-load('check-strats/input_20211012/state_par2021-01-04.mat')
+%load('check-strats/input_20211012/state_par2021-01-04.mat')
+load('check-strats-ages/input_20211101/state_par2021-01-04.mat')
 % Show dates
 % choosen realizatio is o
 
-beta_r = squeeze(beta_r(:,end,:));
+% find td right beta date
+idx = find(time_b == datenum('04-Jan-2021'));
+
+beta_r = squeeze(beta_r(:,idx,:));
 % @DP: added this and I use simulation 102 for the ocp[
 PAR_real(101, :) = mean(PAR_real);
 PAR_real(102, :) = median(PAR_real);
