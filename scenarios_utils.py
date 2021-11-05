@@ -51,11 +51,11 @@ def pick_scenario(setup, scn_id):
     if scn_spec['epicourse'] == 'C':
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays))
     elif scn_spec['epicourse'] == 'U':
-        course = scipy.interpolate.interp1d([0, 10, 40, 80, 100, 1000], [1, 1.5, .9, 1.3, 1.2, 1.2], kind='linear')
+        course = scipy.interpolate.interp1d([0, 10, 40, 80, 100, 1000], [1.4, 1.2, .9,.8, 1.2, .75], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     elif scn_spec['epicourse'] == 'L':
-        course = scipy.interpolate.interp1d([0, 10, 40, 80, 100, 1000], [1, .8, 1.1, .8, 1.5, .75], kind='linear')
+        course = scipy.interpolate.interp1d([0, 10, 40, 80, 100, 1000], [.8, .4, 1.2, .7, .75, .75], kind='linear')
         course = course(np.arange(0, setup.ndays))
         scenario['beta_mult'] = np.ones((setup.nnodes, setup.ndays)) * course
     return scenario
