@@ -49,6 +49,9 @@ class OCParameters:
 
         p_dict, self.mobfrac, self.mobmat, self.beta_ratio, self.x0 = get_parameters_from_matlab(eng, setup, M)
 
+        self.x0_Sagpost = p_dict['x0_Sag']
+        p_dict.pop('x0_Sag')
+
         self.params_structural = {'betaP0': p_dict['betaP0'],
                                   'epsilonA': p_dict['epsilonA'],
                                   'epsilonI': p_dict['epsilonI'],
@@ -157,6 +160,9 @@ def get_parameters_from_matlab(eng, s, model_size):
 
     mobile_frac = np.array(eng.eval('V.p'))[:model_size].flatten()
     mobility_matrix = np.array(eng.eval('full(V.q)'))[:model_size, :model_size]
+
+    # For the age as a post-product:
+    p['x0_Sag'] = np.array(eng.eval('agec_S1_real'))
 
     return p, mobile_frac, mobility_matrix, beta_ratio, x0
 

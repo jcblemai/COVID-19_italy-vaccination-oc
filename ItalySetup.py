@@ -82,6 +82,10 @@ class ItalySetupProvinces:
         agestrat = agestrat.pivot(index='Codice provincia', columns='Category', values='Totale')
         self.pop_node_ag = agestrat.to_numpy()
 
+        agpost = pd.read_csv('italy-data/agpost.csv')
+        self.pop_node_agpost = [list(agpost.loc[i]) for i in range(self.nnodes)]
+
+
         print(f'Loaded Italy Provincial Setup with {self.nnodes} nodes.')
 
 class ItalySetupRegions:

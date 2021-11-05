@@ -16,6 +16,10 @@ beta_r(101,:,:) =  mean(beta_r);
 beta_r(102,:,:) =  median(beta_r);
 x0_real(101,:) =  mean(x0_real);
 x0_real(102,:) =  median(x0_real);
+agec_S1_real(101,:,:) =  mean(agec_S1_real);
+agec_S1_real(102,:,:) =  median(agec_S1_real);
+
+agec_S1_real = squeeze(agec_S1_real(i,:,:));
 
 % Update log:
 % x0_real --> same shape
