@@ -310,6 +310,98 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     return results, y, yell, mob
 
 
+def accurate_integrate(N, setup, parameters, controls, save_to=None, only_yell=False):
+    print(f"===> Integrating for {save_to}. Not pruned mob and not the same dim as usual.")
+    M = setup.nnodes
+    from scipy.integrate import solve_ivp
+    pvector, pvector_names = parameters.get_pvector()
+    deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = pvector[0], pvector[1], \
+                                                                                               pvector[2], pvector[3], \
+                                                                                               pvector[4], pvector[5], \
+                                                                                               pvector[6], pvector[7], \
+                                                                                               pvector[8], pvector[9], \
+                                                                                               pvector[10], pvector[11]
+    betaP0 = parameters.params_structural['betaP0']
+    epsilonA, epsilonI = parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']
+
+    y = np.zeros((N + 1, nx+1, M))
+    for cp, name in enumerate(states_names):
+        for i in range(M):
+            y[0, cp, i] = parameters.x0[i, cp]
+
+    for k in tqdm(range(N)):
+        x_ = np.copy(y[k])
+        x_[-1,:] = 0 # reset yell
+
+        S, E, P, I, A, Q, H, R, V = np.arange(nx)
+        VacPpl = y[k, S, :] + y[k, E, :] + y[k, P, :] + y[k, A, :] + y[k, R, :]
+        vaccrate = controls[:, k] / (VacPpl + 1e-10)
+        x_[S, :] -= vaccrate * y[k, S, :]
+        x_[E, :] -= vaccrate * y[k, E, :]
+        x_[P, :] -= vaccrate * y[k, P, :]
+        x_[A, :] -= vaccrate * y[k, A, :]
+        x_[R, :] -= vaccrate * y[k, R, :]
+        x_[V, :] += controls[i, k]
+
+        mobK = setup.mobintime_arr[:, k]
+        C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat
+        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        betaR = parameters.betaratiointime_arr[:, k]
+
+        def rhs_full_network(t, x):
+            rhs = np.zeros((nx + 1, M))
+            x = np.reshape(x, (nx + 1, M))
+
+            S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
+            foi = C @ ((C.T @ (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) / (
+                        C.T @ (S + E + P + R + A + V) + I))
+            rhs[0] = -foi * S  # + gammaV * V  # S
+            rhs[1] = foi * S - deltaE * E  # E
+            rhs[2] = deltaE * E - deltaP * P  # P
+            rhs[3] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
+            rhs[4] = (1 - sigma) * deltaP * P - gammaA * A  # A
+            rhs[5] = zeta * eta * I - gammaQ * Q  # Q
+            rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
+            rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
+            rhs[8] = 0  # - gammaV * V  # V
+            rhs[9] = foi * S  # total expositions  # ONLY THIS ONE IS USED
+            return np.reshape(rhs, rhs.size)
+
+        x_ = np.reshape(x_, x_.size)
+        sol = solve_ivp(rhs_full_network, [0, 1], x_,  t_eval=[1])
+        y[k + 1] = np.reshape(sol.y, (nx+1, M))
+
+    results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
+    yell = y[:, -1, :]
+    for nd in range(M):
+        results = pd.concat(
+            [results, pd.DataFrame.from_dict(
+                {'value': np.append(controls[nd, :], controls[nd, -1]).ravel(),
+                 'date': setup.model_days,
+                 'place': setup.ind2name[nd],
+                 'placeID': int(nd),
+                 'comp': 'vacc'}),
+                     pd.DataFrame.from_dict(
+                         {'value': yell[:, nd],
+                          'date': setup.model_days,
+                          'place': setup.ind2name[nd],
+                          'placeID': int(nd),
+                          'comp': 'yell'})
+             ])
+        if not only_yell:
+            for i, st in enumerate(states_names):
+                results = pd.concat(
+                    [results, pd.DataFrame.from_dict({'value': y[:, i, nd].ravel(),
+                                                      'date': setup.model_days,
+                                                      'place': setup.ind2name[nd],
+                                                      'placeID': int(nd),
+                                                      'comp': st})])
+    results['placeID'] = results['placeID'].astype(int)
+
+    if save_to is not None:
+        results.to_csv(f'{save_to}.csv', index=False)
+    return results, y, yell
+
 class COVIDVaccinationOCP:
     def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True):
         timer_start = timer()
