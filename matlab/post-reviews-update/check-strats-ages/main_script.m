@@ -1,4 +1,3 @@
-clear 
 close all
 tstart=tic;
 
@@ -9,11 +8,12 @@ tstart=tic;
 %load 'state_par20210111_new.mat'
 %load 'input_20211012/google_data_and_ages.mat'
 %load 'input_20211101/state_par2020-04-30.mat'
-load 'input_20211101/state_par2020-12-31.mat'
+% load 'input_20211101/state_par2020-12-31.mat'
+load 'input_20211101/state_par2021-01-04.mat'
 
-load('beta_ratio.mat','beta_ratio') ; % load beta scenario
-load('Vdoses.mat','Vdoses');  % load vaccination
-load('timesV180.mat','timesV');  % load vaccination
+%load('beta_ratio.mat','beta_ratio') ; % load beta scenario
+%load('Vdoses.mat','Vdoses');  % load vaccination
+%load('timesV180.mat','timesV');  % load vaccination
 
 %beta_ratio=beta_ratio(end:-1:1)/1.5;
 
