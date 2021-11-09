@@ -310,7 +310,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     return results, y, yell, mob
 
 
-def accurate_integrate(N, setup, parameters, controls, save_to=None, only_yell=False):
+def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_yell=False, alloc_strat=None):
     print(f"===> Integrating for {save_to}. Not pruned mob and not the same dim as usual.")
     M = setup.nnodes
     from scipy.integrate import solve_ivp
@@ -329,46 +329,65 @@ def accurate_integrate(N, setup, parameters, controls, save_to=None, only_yell=F
         for i in range(M):
             y[0, cp, i] = parameters.x0[i, cp]
 
+    if controls is None:
+        controls = np.zeros((M,N))
+
+    def rhs_full_network(t, x):
+        rhs = np.zeros((nx + 1, M))
+        x = np.reshape(x, (nx + 1, M))
+        today = int(t)  # floor equivalent
+        mobK = setup.mobintime_arr[:, today]
+        C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat
+        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        betaR = parameters.betaratiointime_arr[:, today]
+        # find
+        S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
+        foi = C @ ((C.T @ (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) / (
+                C.T @ (S + E + P + R + A + V) + I))
+        rhs[0] = -foi * S  # + gammaV * V  # S
+        rhs[1] = foi * S - deltaE * E  # E
+        rhs[2] = deltaE * E - deltaP * P  # P
+        rhs[3] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
+        rhs[4] = (1 - sigma) * deltaP * P - gammaA * A  # A
+        rhs[5] = zeta * eta * I - gammaQ * Q  # Q
+        rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
+        rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
+        rhs[8] = 0  # - gammaV * V  # V
+        rhs[9] = foi * S  # total expositions  # ONLY THIS ONE IS USED
+        return np.reshape(rhs, rhs.size)
+
     for k in tqdm(range(N)):
         x_ = np.copy(y[k])
         x_[-1,:] = 0 # reset yell
-
         S, E, P, I, A, Q, H, R, V = np.arange(nx)
         VacPpl = y[k, S, :] + y[k, E, :] + y[k, P, :] + y[k, A, :] + y[k, R, :]
-        vaccrate = controls[:, k] / (VacPpl + 1e-10)
+
+
+        # Get control from strategy
+        if alloc_strat is None:
+            control_k = controls[:, k]
+        else:
+            if alloc_strat.require_projection:
+                x_alt = np.reshape(x_, x_.size)
+                sol = solve_ivp(rhs_full_network, [k, N + 1], x_alt, t_eval=[N+1])
+                sol = np.reshape(sol.y, (nx + 1, M))
+                control_k = alloc_strat.get_allocation(S=sol[S], yell = sol[-1])
+            else:
+                control_k = alloc_strat.get_allocation(S=x_[S], yell=x_[-1])
+            controls[:, k] = control_k
+
+        # Apply control
+        vaccrate = control_k / (VacPpl + 1e-10)
         x_[S, :] -= vaccrate * y[k, S, :]
         x_[E, :] -= vaccrate * y[k, E, :]
         x_[P, :] -= vaccrate * y[k, P, :]
         x_[A, :] -= vaccrate * y[k, A, :]
         x_[R, :] -= vaccrate * y[k, R, :]
-        x_[V, :] += controls[i, k]
+        x_[V, :] += control_k
 
-        mobK = setup.mobintime_arr[:, k]
-        C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat
-        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
-        betaR = parameters.betaratiointime_arr[:, k]
-
-        def rhs_full_network(t, x):
-            rhs = np.zeros((nx + 1, M))
-            x = np.reshape(x, (nx + 1, M))
-
-            S, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8]
-            foi = C @ ((C.T @ (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) / (
-                        C.T @ (S + E + P + R + A + V) + I))
-            rhs[0] = -foi * S  # + gammaV * V  # S
-            rhs[1] = foi * S - deltaE * E  # E
-            rhs[2] = deltaE * E - deltaP * P  # P
-            rhs[3] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
-            rhs[4] = (1 - sigma) * deltaP * P - gammaA * A  # A
-            rhs[5] = zeta * eta * I - gammaQ * Q  # Q
-            rhs[6] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
-            rhs[7] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
-            rhs[8] = 0  # - gammaV * V  # V
-            rhs[9] = foi * S  # total expositions  # ONLY THIS ONE IS USED
-            return np.reshape(rhs, rhs.size)
-
+        # Solve the integration
         x_ = np.reshape(x_, x_.size)
-        sol = solve_ivp(rhs_full_network, [0, 1], x_,  t_eval=[1])
+        sol = solve_ivp(rhs_full_network, [k, k+1], x_,  t_eval=[k+1])
         y[k + 1] = np.reshape(sol.y, (nx+1, M))
 
     results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
