@@ -362,7 +362,6 @@ def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_y
         S, E, P, I, A, Q, H, R, V = np.arange(nx)
         VacPpl = y[k, S, :] + y[k, E, :] + y[k, P, :] + y[k, A, :] + y[k, R, :]
 
-
         # Get control from strategy
         if alloc_strat is None:
             control_k = controls[:, k]
@@ -371,9 +370,9 @@ def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_y
                 x_alt = np.reshape(x_, x_.size)
                 sol = solve_ivp(rhs_full_network, [k, N + 1], x_alt, t_eval=[N+1])
                 sol = np.reshape(sol.y, (nx + 1, M))
-                control_k = alloc_strat.get_allocation(S=sol[S], yell = sol[-1])
+                control_k = alloc_strat.get_allocation(k, susceptible=sol[S], incidence = sol[-1])
             else:
-                control_k = alloc_strat.get_allocation(S=x_[S], yell=x_[-1])
+                control_k = alloc_strat.get_allocation(k, susceptible=x_[S], incidence=x_[-1])
             controls[:, k] = control_k
 
         # Apply control
