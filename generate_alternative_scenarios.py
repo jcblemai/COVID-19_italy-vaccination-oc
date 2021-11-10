@@ -10,6 +10,7 @@ import sys, os
 from scenarios_utils import pick_scenario, build_scenario
 import pandas as pd
 import multiprocessing as mp
+import tqdm
 
 
 
@@ -84,17 +85,13 @@ class AlternativeStrategy:
 
     def allocate_now(self, decision_variable_array, today_idx):
         # Sort the decision variable dataframe:
-        print(decision_variable_array)
         decision_variable_df = pd.DataFrame(decision_variable_array, index=setup.ind2name, columns=['value'])
-        print(decision_variable_df)
         decision_variable_df.sort_values('value', ascending=False, inplace=True)
-        print(decision_variable_df)
         alloc_now = np.zeros(self.M)
         self.stockpile += self.delivery_national[today_idx]
         for nodename in decision_variable_df.index:
             nd = setup.ind2name.index(nodename)
             to_allocate = self.alloc_function(decision_variable_df, nd, nodename)
-            print(to_allocate.shape, self.maxvaccrate_regional.shape)
             to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd])
             alloc_now[nd] = to_allocate
             self.stockpile        -= to_allocate
@@ -132,20 +129,30 @@ def create_all_alt_strategies(scenario):
 
     return alt_strategies
 
+
+# Generate posterior
+if False:
+    for post_real in tqdm.tqdm(np.arange(1, 102+1)):
+        p = COVIDParametersOCP.OCParameters(setup=setup, M=M, when=when, posterior_draw=post_real)
+        with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'wb') as out:
+            pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
+    exit(0)
+
 for scenario_name, scenario in scenarios.items():
     print(f'Doing scenario {scenario_name}')
     p.apply_epicourse(setup, scenario['beta_mult'])
     control_initial = np.zeros((M, N))
 
     alt_strategies = create_all_alt_strategies(scenario)
+
     for shortname, strat in alt_strategies.items():
         results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(N,
                                                                                setup=setup,
                                                                                parameters=p,
                                                                                controls=None,
                                                                                save_to=f'{outdir}{prefix}-{shortname}-{nnodes}_{ndays}-nc',
-                                                                               only_yell = False,
-                                                                               alloc_strat = strat)
+                                                                               only_yell=True,
+                                                                               alloc_strat=strat)
     exp_accurate_py = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date')
 
     #all_sims = pool.starmap(compute_alt_scenarios,

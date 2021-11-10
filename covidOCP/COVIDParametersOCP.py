@@ -23,13 +23,13 @@ class OCParameters:
             eng.cd('matlab/data-assimilation/', nargout=0)
             # The realization with the maximum infected at the end of the 3 months is realization 33.
             # The realization with the median number of infected at the end of the 3 months is realization 24.
-            eng.workspace['i'] = posterior_draw
+            eng.workspace['i'] = int(posterior_draw)
             eng.run('minimal_interface.m', nargout=0)
         if when == 'future-mobintime':
             eng.cd('matlab/post-reviews-update/', nargout=0)
             # The realization with the maximum infected at the end of the 3 months is realization 33.
             # The realization with the median number of infected at the end of the 3 months is realization 24.
-            eng.workspace['i'] = posterior_draw
+            eng.workspace['i'] = int(posterior_draw)
             eng.run('minimal_interface.m', nargout=0)
 
         #if when == 'past':
