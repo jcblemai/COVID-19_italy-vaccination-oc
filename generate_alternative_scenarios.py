@@ -160,7 +160,9 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
     tic1 = time.time()
 
     # create object here so not shared:
-    setup = ItalySetupProvinces(nnodes, ndays, when)
+    with open(f'italy-data/full_posterior/setup_{nnodes}_{when}.pkl', 'rb') as inp:
+        setup = pickle.load(inp)
+    #setup = ItalySetupProvinces(nnodes, ndays, when)
 
     print(f"{scenario_name}, {post_real}")
     alt_strategies = create_all_alt_strategies(setup, scenario_name, scenario)
@@ -203,13 +205,17 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
 
 
 setup_shared = ItalySetupProvinces(nnodes, ndays, when) #shared between thread, don't use everywhere
+
 # Generate posterior
 if False:
     for post_real in tqdm.tqdm(np.arange(1, 102+1)):
         p = COVIDParametersOCP.OCParameters(setup=setup_shared, M=M, when=when, posterior_draw=post_real)
         with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'wb') as out:
             pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
+        with open(f'italy-data/full_posterior/setup_{nnodes}_{when}.pkl', 'wb') as out:
+            pickle.dump(setup_shared, out, pickle.HIGHEST_PROTOCOL)
     exit(0)
+
 
 
 # Pick the right scenarios
