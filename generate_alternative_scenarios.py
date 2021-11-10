@@ -30,16 +30,7 @@ nnodes = 107  # nodes
 ndays_ocp = 90
 ndays = 90
 
-setup = ItalySetupProvinces(nnodes, ndays, when)
-setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
-M = setup.nnodes
-N = len(setup.model_days) - 1
-
-# Pick the right scenarios
-scenarios = {pick_scenario(setup, i)['name']: pick_scenario(setup, i) for i in np.arange(15)}
-pick = 'r15-'
-scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
-print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
+#setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
 
 os.makedirs(f'{output_directory}', exist_ok=True)
 
@@ -48,6 +39,7 @@ class AlternativeStrategy:
         self.maxvaccrate_regional, self.delivery_national, self.stockpile_national_constraint, _ = build_scenario(setup, scenario)
         self.M = setup.nnodes
         self.pop_node = setup.pop_node
+        self.ind2name = setup.ind2name  # so we get rid of setup when pickled
         self.maxvaccrate_regional = self.maxvaccrate_regional[:,0] # stays the same over the course, so take the first one
 
         # updated states variables
@@ -91,12 +83,12 @@ class AlternativeStrategy:
 
     def allocate_now(self, decision_variable_array, today_idx):
         # Sort the decision variable dataframe:
-        decision_variable_df = pd.DataFrame(decision_variable_array, index=setup.ind2name, columns=['value'])
+        decision_variable_df = pd.DataFrame(decision_variable_array, index=self.ind2name, columns=['value'])
         decision_variable_df.sort_values('value', ascending=False, inplace=True)
         alloc_now = np.zeros(self.M)
         self.stockpile += self.delivery_national[today_idx]
         for nodename in decision_variable_df.index:
-            nd = setup.ind2name.index(nodename)
+            nd = self.ind2name.index(nodename)
             to_allocate = self.alloc_function(decision_variable_df, nd, nodename)
             to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd])
             alloc_now[nd] = to_allocate
@@ -117,7 +109,7 @@ class AlternativeStrategy:
             return np.zeros(self.M)
 
 
-def create_all_alt_strategies(scenario_name, scenario):
+def create_all_alt_strategies(setup, scenario_name, scenario):
     # create scenarios
     decisions_variables = ['susceptible', 'population', 'incidence']
     alt_strategies = {}
@@ -152,25 +144,19 @@ def create_all_alt_strategies(scenario_name, scenario):
     alt_strategies[alt_strat.shortname] = alt_strat
 
     print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())}')
-
-
-
     return alt_strategies
 
 
-# Generate posterior
-if False:
-    for post_real in tqdm.tqdm(np.arange(1, 102+1)):
-        p = COVIDParametersOCP.OCParameters(setup=setup, M=M, when=when, posterior_draw=post_real)
-        with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'wb') as out:
-            pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
-    exit(0)
 
 
 def worker_one_posterior_realization(post_real, scenario_name, scenario):
     tic1 = time.time()
+
+    # create object here so not shared:
+    setup = ItalySetupProvinces(nnodes, ndays, when)
+
     print(f"{scenario_name}, {post_real}")
-    alt_strategies = create_all_alt_strategies(scenario_name, scenario)
+    alt_strategies = create_all_alt_strategies(setup, scenario_name, scenario)
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
         p = pickle.load(inp)
     p.apply_epicourse(setup, scenario['beta_mult'])
@@ -178,7 +164,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
     all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
 
     for shortname, strat in alt_strategies.items():
-        #tic = time.time()
+        tic = time.time()
         results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(N,
                                                                                setup=setup,
                                                                                parameters=p,
@@ -203,14 +189,31 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
              'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
              })])
 
-        #print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s")
+        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s")
 
     print(f"{scenario_name}, {post_real} done in {time.time()-tic1} seconds")
     return all_results
 
+
+setup_shared = ItalySetupProvinces(nnodes, ndays, when) #shared between thread, don't use everywhere
+# Generate posterior
+if False:
+    for post_real in tqdm.tqdm(np.arange(1, 102+1)):
+        p = COVIDParametersOCP.OCParameters(setup=setup_shared, M=M, when=when, posterior_draw=post_real)
+        with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'wb') as out:
+            pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
+    exit(0)
+
+
+# Pick the right scenarios
+scenarios = {pick_scenario(setup_shared, i)['name']: pick_scenario(setup_shared, i) for i in np.arange(15)}
+pick = 'r15-'
+scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
+print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
+
+
 pool = mp.Pool(mp.cpu_count())
 if __name__ == '__main__':
-
     all_results = []
     for scenario_name, scenario in scenarios.items():
         print(f'>>> Doing scenario {scenario_name}')
