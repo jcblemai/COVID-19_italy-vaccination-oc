@@ -22,6 +22,7 @@ when = 'future-mobintime'
 prefix = f'altstratint'
 outdir = 'helvetios-runs/2021-11-05-107_90/'
 generated_dir = 'model_output/2021-11-09'
+file_prefix = f'week'
 
 nnodes = 107  # nodes
 ndays_ocp = 90
@@ -45,7 +46,7 @@ print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 pool = mp.Pool(mp.cpu_count())
 
 class AlternativeStrategy:
-    def __init__(self, setup, scenario, alloc_function, decision_variable, dv_per_pop, require_projection):
+    def __init__(self, setup, scenario, decision_variable, alloc_function=None, dv_per_pop=False, require_projection=False, alloc_array=None):
         self.maxvaccrate_regional, self.delivery_national, self.stockpile_national_constraint, _ = build_scenario(setup, scenario)
         self.M = setup.nnodes
         self.pop_node = setup.pop_node
@@ -77,11 +78,18 @@ class AlternativeStrategy:
             self.name += ' (proportional)'
             self.shortname += '_p'
 
+        if alloc_array is not None:
+            self.alloc_array = alloc_array
+
     def focused_alloc(self, decision_df_sorted, nd, nodename):
         return self.maxvaccrate_regional[nd]
 
     def proportional_alloc(self, decision_df_sorted, nd, nodename):
-        return self.stockpile * decision_df_sorted.loc[nodename]['value'] /  decision_df_sorted['value'].sum()
+        return self.stockpile * decision_df_sorted.loc[nodename]['value'] / decision_df_sorted['value'].sum()
+
+    def array_alloc(self, today_idx):
+        return self.alloc_array[:, today_idx]
+
 
     def allocate_now(self, decision_variable_array, today_idx):
         # Sort the decision variable dataframe:
@@ -105,6 +113,10 @@ class AlternativeStrategy:
             return self.allocate_now(incidence/self.divider, today_idx)
         elif 'population' in self.decision_variable:
             return self.allocate_now(self.pop_node/self.divider, today_idx)
+        elif 'optimal' in self.decision_variable:
+            return self.array_alloc(today_idx)
+        elif 'novacc' in self.decision_variable:
+            return np.zeros(self.M)
 
 
 def create_all_alt_strategies(scenario):
@@ -119,11 +131,28 @@ def create_all_alt_strategies(scenario):
             for dv_per_pop in [True, False]:
                 alt_strat = AlternativeStrategy(setup,
                                                 scenario,
-                                                alloc_function,
                                                 decision_variable,
+                                                alloc_function,
                                                 dv_per_pop,
                                                 require_projection)
                 alt_strategies[alt_strat.shortname] = alt_strat
+
+    # get the optimal strategy
+    fname = f"{outdir}{file_prefix}-{scenario_name}-opt-{nnodes}_{ndays_ocp}.csv"
+    optimal_df = pd.read_csv(fname, index_col='date', parse_dates=True)
+    optimal_alloc = optimal_df[optimal_df['comp'] == 'vacc'][['value', 'placeID']].pivot(columns='placeID', values='value').T
+    optimal_alloc_array = optimal_alloc.sort_index().to_numpy()
+    alt_strat = AlternativeStrategy(setup,
+                                    scenario,
+                                    'optimal',
+                                    alloc_array=optimal_alloc_array)
+    alt_strategies[alt_strat.shortname] = alt_strat
+
+    alt_strat = AlternativeStrategy(setup,
+                                    scenario,
+                                    'novacc')
+
+    alt_strategies[alt_strat.shortname] = alt_strat
 
     print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())}')
 
