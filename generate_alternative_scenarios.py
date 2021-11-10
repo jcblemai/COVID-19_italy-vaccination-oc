@@ -83,10 +83,14 @@ class AlternativeStrategy:
 
     def allocate_now(self, decision_variable_array, today_idx):
         # Sort the decision variable dataframe:
+        self.stockpile += self.delivery_national[today_idx]
+        #optimize when already allocated
+        if self.stockpile <= 1:
+            return  np.zeros(self.M)
+
         decision_variable_df = pd.DataFrame(decision_variable_array, index=self.ind2name, columns=['value'])
         decision_variable_df.sort_values('value', ascending=False, inplace=True)
         alloc_now = np.zeros(self.M)
-        self.stockpile += self.delivery_national[today_idx]
         for nodename in decision_variable_df.index:
             nd = self.ind2name.index(nodename)
             to_allocate = self.alloc_function(decision_variable_df, nd, nodename)
@@ -94,6 +98,8 @@ class AlternativeStrategy:
             alloc_now[nd] = to_allocate
             self.stockpile        -= to_allocate
             self.unvaccinated[nd] -= to_allocate
+            if self.stockpile <= 1:
+                return alloc_now
         return alloc_now
 
     def get_allocation(self, today_idx, susceptible, incidence):
