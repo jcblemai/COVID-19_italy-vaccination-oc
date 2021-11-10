@@ -12,17 +12,18 @@ import pandas as pd
 import multiprocessing as mp
 import tqdm
 
-
-
 # Replace the jupyter notebook that was based on matlab called generate_all_scn.
 
 nx = 9
 states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future-mobintime'
-prefix = f'altstratint'
-outdir = 'helvetios-runs/2021-11-05-107_90/'
-generated_dir = 'model_output/2021-11-09'
-file_prefix = f'week'
+
+# to load the optimal strategy
+input_directory = 'helvetios-runs/2021-11-05-107_90'
+input_prefix = f'week'
+# to output the now files
+output_directory = 'model_output/2021-11-09'
+output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
 ndays_ocp = 90
@@ -33,17 +34,13 @@ setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
 M = setup.nnodes
 N = len(setup.model_days) - 1
 
-with open(f'italy-data/parameters_{nnodes}_{when}.pkl', 'rb') as inp:
-    p = pickle.load(inp)
-
-os.makedirs(f'{generated_dir}', exist_ok=True)
-
+# Pick the right scenarios
 scenarios = {pick_scenario(setup, i)['name']: pick_scenario(setup, i) for i in np.arange(15)}
 pick = 'r15-'
 scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
 print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 
-pool = mp.Pool(mp.cpu_count())
+os.makedirs(f'{output_directory}', exist_ok=True)
 
 class AlternativeStrategy:
     def __init__(self, setup, scenario, decision_variable, alloc_function=None, dv_per_pop=False, require_projection=False, alloc_array=None):
@@ -119,7 +116,7 @@ class AlternativeStrategy:
             return np.zeros(self.M)
 
 
-def create_all_alt_strategies(scenario):
+def create_all_alt_strategies(scenario_name, scenario):
     # create scenarios
     decisions_variables = ['susceptible', 'population', 'incidence']
     alt_strategies = {}
@@ -136,9 +133,8 @@ def create_all_alt_strategies(scenario):
                                                 dv_per_pop,
                                                 require_projection)
                 alt_strategies[alt_strat.shortname] = alt_strat
-
     # get the optimal strategy
-    fname = f"{outdir}{file_prefix}-{scenario_name}-opt-{nnodes}_{ndays_ocp}.csv"
+    fname = f"{input_directory}/{input_prefix}-{scenario_name}-opt-{nnodes}_{ndays_ocp}.csv"
     optimal_df = pd.read_csv(fname, index_col='date', parse_dates=True)
     optimal_alloc = optimal_df[optimal_df['comp'] == 'vacc'][['value', 'placeID']].pivot(columns='placeID', values='value').T
     optimal_alloc_array = optimal_alloc.sort_index().to_numpy()
@@ -167,25 +163,57 @@ if False:
             pickle.dump(p, out, pickle.HIGHEST_PROTOCOL)
     exit(0)
 
-for scenario_name, scenario in scenarios.items():
-    print(f'Doing scenario {scenario_name}')
-    p.apply_epicourse(setup, scenario['beta_mult'])
-    control_initial = np.zeros((M, N))
 
-    alt_strategies = create_all_alt_strategies(scenario)
+def worker_one_posterior_realization(post_real, scenario_name, scenario):
+    print(f"{scenario_name}, {post_real}")
+    alt_strategies = create_all_alt_strategies(scenario_name, scenario)
+    with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
+        p = pickle.load(inp)
+    p.apply_epicourse(setup, scenario['beta_mult'])
+
+    all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
 
     for shortname, strat in alt_strategies.items():
         results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(N,
                                                                                setup=setup,
                                                                                parameters=p,
                                                                                controls=None,
-                                                                               save_to=f'{outdir}{prefix}-{shortname}-{nnodes}_{ndays}-nc',
+                                                                               save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
                                                                                only_yell=True,
                                                                                alloc_strat=strat)
-    exp_accurate_py = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date')
+        yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date').sum().sum()
+        vacc_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date').sum().sum()
 
-    #all_sims = pool.starmap(compute_alt_scenarios,
-    #                    [(post_rea, scenario_name, scenario) for post_rea in range(100)])
+
+        all_results = pd.concat([all_results, pd.DataFrame.from_dict(
+            {'method_short': [shortname],
+             'method': [strat.name],
+             'infected': [yell_tot],
+             'post_sample': [post_real],
+             'doses': [vacc_tot],
+             'scenario-beta': [scenario_name.split('-')[0]],
+             'scenario-rate': [scenario_name.split('-')[1]],
+             'scenario-tot': [scenario_name.split('-')[2]],
+             'scenario': [scenario_name],
+             'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
+             })])
+
+    return all_results
+
+pool = mp.Pool(mp.cpu_count()-1)
+if __name__ == '__main__':
+
+    all_results = []
+    for scenario_name, scenario in scenarios.items():
+        print(f'>>> Doing scenario {scenario_name}')
+        results_scn = pool.starmap(worker_one_posterior_realization,
+                        [(post_real, scenario_name, scenario) for post_real in np.arange(1,102+1)])
+
+        all_results.append(pd.concat(results_scn))
+
+    all_results = pd.concat(all_results)
+    all_results.to_csv(f'{output_directory}/{output_prefix}-ALL.csv', index=False)
+
 
 
 

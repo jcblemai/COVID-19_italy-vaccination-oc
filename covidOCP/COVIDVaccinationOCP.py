@@ -311,7 +311,7 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
 
 
 def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_yell=False, alloc_strat=None):
-    print(f"===> Integrating for {save_to}. Not pruned mob and not the same dim as usual.")
+    #print(f"===> Integrating for {save_to}. Not pruned mob and not the same dim as usual.")
     M = setup.nnodes
     from scipy.integrate import solve_ivp
     pvector, pvector_names = parameters.get_pvector()
@@ -356,7 +356,7 @@ def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_y
         rhs[9] = foi * S  # total expositions  # ONLY THIS ONE IS USED
         return np.reshape(rhs, rhs.size)
 
-    for k in tqdm(range(N)):
+    for k in range(N):
         x_ = np.copy(y[k])
         x_[-1,:] = 0 # reset yell
         S, E, P, I, A, Q, H, R, V = np.arange(nx)
