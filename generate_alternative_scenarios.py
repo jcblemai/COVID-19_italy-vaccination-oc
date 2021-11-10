@@ -165,7 +165,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
 
     for shortname, strat in alt_strategies.items():
         tic = time.time()
-        results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(N,
+        results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(len(setup.model_days) - 1,
                                                                                setup=setup,
                                                                                parameters=p,
                                                                                controls=None,
