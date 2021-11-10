@@ -74,6 +74,7 @@ class AlternativeStrategy:
     def focused_alloc(self, decision_df_sorted, nd, nodename):
         return self.maxvaccrate_regional[nd]
 
+    # this can be vectorized...
     def proportional_alloc(self, decision_df_sorted, nd, nodename):
         return self.stockpile * decision_df_sorted.loc[nodename]['value'] / decision_df_sorted['value'].sum()
 
