@@ -6,6 +6,7 @@ from covidOCP import COVIDParametersOCP
 import pickle
 import matplotlib.pyplot as plt
 import click
+import time
 import sys, os
 from scenarios_utils import pick_scenario, build_scenario
 import pandas as pd
@@ -152,6 +153,8 @@ def create_all_alt_strategies(scenario_name, scenario):
 
     print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())}')
 
+
+
     return alt_strategies
 
 
@@ -165,6 +168,7 @@ if False:
 
 
 def worker_one_posterior_realization(post_real, scenario_name, scenario):
+    tic1 = time.time()
     print(f"{scenario_name}, {post_real}")
     alt_strategies = create_all_alt_strategies(scenario_name, scenario)
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
@@ -174,6 +178,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
     all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
 
     for shortname, strat in alt_strategies.items():
+        #tic = time.time()
         results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(N,
                                                                                setup=setup,
                                                                                parameters=p,
@@ -198,9 +203,12 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
              'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
              })])
 
+        #print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s")
+
+    print(f"{scenario_name}, {post_real} done in {time.time()-tic1} seconds")
     return all_results
 
-pool = mp.Pool(mp.cpu_count()-1)
+pool = mp.Pool(mp.cpu_count())
 if __name__ == '__main__':
 
     all_results = []
