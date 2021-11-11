@@ -58,6 +58,7 @@ class AlternativeStrategy:
         if dv_per_pop:
             self.divider = self.pop_node
             self.shortname += '_pp'
+            self.name += ' per hab.'
 
         if alloc_function == 'focused':
             self.alloc_function = self.focused_alloc
