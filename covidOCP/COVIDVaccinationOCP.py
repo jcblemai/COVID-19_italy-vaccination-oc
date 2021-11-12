@@ -370,9 +370,10 @@ def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_y
                 x_alt = np.reshape(x_, x_.size)
                 sol = solve_ivp(rhs_full_network, [k, N], x_alt, t_eval=[N])
                 sol = np.reshape(sol.y, (nx + 1, M))
-                control_k = alloc_strat.get_allocation(k, susceptible=sol[S], incidence=sol[-1])
+                # because yell is not reseted, this is really commulative incindece till date.
+                control_k = alloc_strat.get_today_allocation(k, susceptible=sol[S], incidence=sol[-1])
             else:
-                control_k = alloc_strat.get_allocation(k, susceptible=x_[S], incidence=x_[-1])
+                control_k = alloc_strat.get_today_allocation(k, susceptible=x_[S], incidence=x_[-1])
             controls[:, k] = control_k
 
         # Apply control

@@ -35,11 +35,12 @@ ndays = 90
 os.makedirs(f'{output_directory}', exist_ok=True)
 
 class AlternativeStrategy:
-    def __init__(self, setup, scenario, decision_variable, alloc_function=None, dv_per_pop=False, require_projection=False, alloc_array=None):
+    def __init__(self, setup, scenario, decision_variable, alloc_function=None, dv_per_pop=False, require_projection=False, alloc_arr=None):
         self.maxvaccrate_regional, self.delivery_national, self.stockpile_national_constraint, _ = build_scenario(setup, scenario)
         self.M = setup.nnodes
         self.pop_node = setup.pop_node
         self.ind2name = setup.ind2name  # so we get rid of setup when pickled
+        self.ndays = setup.ndays
         self.maxvaccrate_regional = self.maxvaccrate_regional[:,0] # stays the same over the course, so take the first one
 
         # updated states variables
@@ -50,7 +51,9 @@ class AlternativeStrategy:
         self.require_projection = require_projection
 
         # The decision variable is per habitant
-        self.name = decision_variable
+        self.name = decision_variable.capitalize()
+        if self.decision_variable == 'novacc':
+            self.name = 'Baseline'
         self.shortname = decision_variable[:3]
 
         self.dv_per_pop = dv_per_pop
@@ -69,8 +72,13 @@ class AlternativeStrategy:
             self.name += ' (proportional)'
             self.shortname += '_p'
 
-        if alloc_array is not None:
-            self.alloc_array = alloc_array
+        self.compute_new_strat = True
+
+        if alloc_arr is not None:
+            self.alloc_arr = alloc_arr
+            self.compute_new_strat = False
+        else:
+            self.alloc_arr = np.ones((self.M, self.ndays-1)) * -1 # to be filled
 
     def focused_alloc(self, decision_df_sorted, nd, nodename):
         return self.maxvaccrate_regional[nd]
@@ -79,16 +87,12 @@ class AlternativeStrategy:
     def proportional_alloc(self, decision_df_sorted, nd, nodename):
         return self.stockpile * decision_df_sorted.loc[nodename]['value'] / decision_df_sorted['value'].sum()
 
-    def array_alloc(self, today_idx):
-        return self.alloc_array[:, today_idx]
-
-
     def allocate_now(self, decision_variable_array, today_idx):
         # Sort the decision variable dataframe:
         self.stockpile += self.delivery_national[today_idx]
         #optimize when already allocated
         if self.stockpile <= 1:
-            return  np.zeros(self.M)
+            return np.zeros(self.M)
 
         decision_variable_df = pd.DataFrame(decision_variable_array, index=self.ind2name, columns=['value'])
         decision_variable_df.sort_values('value', ascending=False, inplace=True)
@@ -104,17 +108,29 @@ class AlternativeStrategy:
                 return alloc_now
         return alloc_now
 
-    def get_allocation(self, today_idx, susceptible, incidence):
+    def get_today_allocation(self, today_idx, susceptible, incidence):
+        if self.compute_new_strat:
+            self.alloc_arr[:, today_idx] = self.compute_today_allocation(today_idx, susceptible, incidence)
+
+        # return from memory
+        return self.alloc_today_from_memory(today_idx)
+
+    def alloc_today_from_memory(self, today_idx):
+        return self.alloc_arr[:, today_idx]
+
+    def compute_today_allocation(self, today_idx, susceptible, incidence):
         if 'susceptible' in self.decision_variable:
             return self.allocate_now(susceptible/self.divider, today_idx)
         elif 'incidence' in self.decision_variable:
             return self.allocate_now(incidence/self.divider, today_idx)
         elif 'population' in self.decision_variable:
             return self.allocate_now(self.pop_node/self.divider, today_idx)
-        elif 'optimal' in self.decision_variable:
-            return self.array_alloc(today_idx)
         elif 'novacc' in self.decision_variable:
             return np.zeros(self.M)
+        elif 'optimal' in self.decision_variable:
+            raise ValueError('No you cannot compute today_allocation for optimal, only from memory')
+        else:
+            raise ValueError(f'impossible to compute allocation from {self.decision_variable}')
 
 
 def create_all_alt_strategies(setup, scenario_name, scenario):
@@ -142,7 +158,7 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
     alt_strat = AlternativeStrategy(setup,
                                     scenario,
                                     'optimal',
-                                    alloc_array=optimal_alloc_array)
+                                    alloc_arr=optimal_alloc_array)
     alt_strategies[alt_strat.shortname] = alt_strat
 
     alt_strat = AlternativeStrategy(setup,
@@ -151,13 +167,10 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
 
     alt_strategies[alt_strat.shortname] = alt_strat
 
-    print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())}')
+    print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())} for scenario {scenario_name}')
     return alt_strategies
 
-
-
-
-def worker_one_posterior_realization(post_real, scenario_name, scenario):
+def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_strategies):
     tic1 = time.time()
 
     # create object here so not shared:
@@ -166,7 +179,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
     #setup = ItalySetupProvinces(nnodes, ndays, when)
 
     print(f"{scenario_name}, {post_real}")
-    alt_strategies = create_all_alt_strategies(setup, scenario_name, scenario)
+
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
         p = pickle.load(inp)
     p.apply_epicourse(setup, scenario['beta_mult'])
@@ -199,7 +212,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario):
              'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
              })])
 
-        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s")
+        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s, with compute a new strat set as {strat.compute_new_strat}")
 
     print(f"{scenario_name}, {post_real} done in {time.time()-tic1} seconds")
     return all_results
@@ -218,7 +231,6 @@ if False:
     exit(0)
 
 
-
 # Pick the right scenarios
 scenarios = {pick_scenario(setup_shared, i)['name']: pick_scenario(setup_shared, i) for i in np.arange(15)}
 pick = 'r15-'
@@ -229,15 +241,29 @@ print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 pool = mp.Pool(mp.cpu_count())
 if __name__ == '__main__':
     all_results = []
+    tic = time.time()
+
+    alt_strategies = {}
+    for scenario_name, scenario in scenarios.items():
+        alt_strategies[scenario_name] = create_all_alt_strategies(setup_shared, scenario_name, scenario)
+
+    print("computing all scenarios on realization 102, the median realization, to construct all the alternative strategies")
+    results_scn = pool.starmap(worker_one_posterior_realization, [(102, scenario_name, scenario, alt_strategies[scenario_name]) for scenario_name, scenario in scenarios.items()])
+    all_results.append(pd.concat(results_scn))
+
+
     for scenario_name, scenario in scenarios.items():
         print(f'>>> Doing scenario {scenario_name}')
+        for shortname, strat in alt_strategies[scenario_name].items():
+            strat.compute_new_strat = False
         results_scn = pool.starmap(worker_one_posterior_realization,
-                        [(post_real, scenario_name, scenario) for post_real in np.arange(1,102+1)])
-
+                        [(post_real, scenario_name, scenario,  alt_strategies[scenario_name]) for post_real in np.arange(1, 101+1)])
         all_results.append(pd.concat(results_scn))
 
     all_results = pd.concat(all_results)
     all_results.to_csv(f'{output_directory}/{output_prefix}-ALL.csv', index=False)
+
+    print(f"Terminating succesfuly in {(time.time() - tic1)/3600} hours")
 
 
 
