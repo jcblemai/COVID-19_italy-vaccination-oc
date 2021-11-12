@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from ItalySetup import ItalySetupProvinces
 from covidOCP import COVIDVaccinationOCP as COVIDVaccinationOCP
@@ -108,7 +109,7 @@ class AlternativeStrategy:
                 return alloc_now
         return alloc_now
 
-    def get_today_allocation(self, today_idx, susceptible, incidence):
+    def get_today_allocation(self, today_idx, susceptible=None, incidence=None):
         if self.compute_new_strat:
             self.alloc_arr[:, today_idx] = self.compute_today_allocation(today_idx, susceptible, incidence)
 
@@ -257,7 +258,7 @@ if __name__ == '__main__':
         for shortname, strat in alt_strategies[scenario_name].items():
             strat.compute_new_strat = False
         results_scn = pool.starmap(worker_one_posterior_realization,
-                        [(post_real, scenario_name, scenario,  alt_strategies[scenario_name]) for post_real in np.arange(1, 101+1)])
+                        [(post_real, scenario_name, copy.deepcopy(scenario), copy.deepcopy(alt_strategies[scenario_name])) for post_real in np.arange(1, 101+1)])
         all_results.append(pd.concat(results_scn))
 
     all_results = pd.concat(all_results)
