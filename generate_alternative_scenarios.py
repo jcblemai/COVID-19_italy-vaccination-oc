@@ -221,7 +221,6 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
                                                                                    alloc_strat=strat)
             strat_name = strat.name
         else:
-            print(strat['array'].shape)
             results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
                                                                                    setup=setup,
                                                                                    parameters=p,
@@ -246,9 +245,9 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
              'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
              })])
 
-        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s. vacc:{vacc_tot}, yell:{yell_tot}")
+        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic:.1f} s. vacc:{vacc_tot:.0f}, yell:{yell_tot:.0f}")
 
-    print(f"{scenario_name}, {post_real} done in {time.time()-tic1} seconds")
+    print(f"{scenario_name}, {post_real} done in {time.time()-tic1:.1f} seconds")
     return all_results
 
 
@@ -305,7 +304,7 @@ if __name__ == '__main__':
     print(all_results)
     all_results.to_csv(f'{output_directory}/{output_prefix}-ALL.csv', index=False)
 
-    print(f"Terminating succesfuly in {(time.time() - tic)/3600} hours")
+    print(f"Terminating succesfuly in {(time.time() - tic)/3600:.2f} hours")
 
 
 
