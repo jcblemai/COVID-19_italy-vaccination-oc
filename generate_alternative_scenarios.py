@@ -298,7 +298,6 @@ if __name__ == '__main__':
                           #None, #alt_strategies[scenario_name]
                           alt_strategies_all_arrs[scenario_name]) for post_real in np.arange(1, 102+1)])
         all_results.append(pd.concat(results_scn))
-        print(all_results)
 
     all_results = pd.concat(all_results)
     print(all_results)

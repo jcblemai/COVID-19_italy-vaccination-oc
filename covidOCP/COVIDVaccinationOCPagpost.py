@@ -73,18 +73,17 @@ def rhs_py(t, x, u, cov, p, mob, pop_node, p_foi):
     rhs[4] = -E5
 
 
-    rhs_ell = [None] * 3
-    rhs_ell[0] = gammaH * H  # recovered from the hospital
+    rhs_ell = [None] * 2
+    rhs_ell[0] = foi * S  # recovered from the hospital
     #rhs_ell[1] = foi * S #alphaH * H  # total death   # ONLY THIS ONE IS USED
     rhs_ell[1] = 0.01/100*E1+0.04/100*E2+0.43/100*E3+6.06/100*E4+20.83/100*E5
-    rhs_ell[2] = (1 - zeta) * eta * I  # cumulative hospitalized cases
 
     return rhs, rhs_ell
 
 
 def frhs_integrate(y, p, foi, pop_node, p_foi=[0] * 5):
     y, ell = rhs_py(t=0, x=y, u=0, cov=0, p=p, mob=foi, pop_node=pop_node, p_foi=p_foi)
-    return np.array(y), ell[1]
+    return np.array(y), np.array(ell)
 
 
 def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
@@ -117,7 +116,8 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     S1, S2, S3, S4, S5, E, P, I, A, Q, H, R, V = np.arange(nx)
 
     y = np.zeros((M, N + 1, nx))
-    yell = np.zeros((M, N + 1))
+    yell_death = np.zeros((M, N + 1))
+    yell_infection = np.zeros((M, N + 1))
     mob = np.zeros((M, N + 1))
 
     for cp, name in enumerate(states_names):
@@ -183,24 +183,32 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
                 ell += ell_
 
             y[i, k + 1, :] = x_
-            yell[i, k + 1] = ell
+            yell_infection[i, k + 1] = ell[0]
+            yell_death[i, k + 1] = ell[1]
 
     results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
 
     for nd in range(M):
         results = pd.concat(
-            [results, pd.DataFrame.from_dict(
+            [results,
+             pd.DataFrame.from_dict(
                 {'value': np.append(controls[nd, :], controls[nd, -1]).ravel(),
                  'date': setup.model_days,
                  'place': setup.ind2name[nd],
                  'placeID': int(nd),
                  'comp': 'vacc'}),
-                     pd.DataFrame.from_dict(
-                         {'value': yell[nd],
-                          'date': setup.model_days,
-                          'place': setup.ind2name[nd],
-                          'placeID': int(nd),
-                          'comp': 'yell'})
+             pd.DataFrame.from_dict(
+                 {'value': yell_infection[nd],
+                  'date': setup.model_days,
+                  'place': setup.ind2name[nd],
+                  'placeID': int(nd),
+                  'comp': 'yell_infection'}),
+             pd.DataFrame.from_dict(
+                 {'value': yell_death[nd],
+                  'date': setup.model_days,
+                  'place': setup.ind2name[nd],
+                  'placeID': int(nd),
+                  'comp': 'yell_death'})
              ])
         for i, st in enumerate(states_names):
             results = pd.concat(
@@ -214,11 +222,11 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     if save_to is not None:
         results.to_csv(f'{save_to}.csv', index=False)
 
-    return results, y, yell, mob
+    return results, y, yell_infection, yell_death, mob
 
 
-class COVIDVaccinationOCPr:
-    def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True):
+class COVIDVaccinationOCPagpost:
+    def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True, objective='death'):
         timer_start = timer()
         self.N = N
         self.n_int_steps = n_int_steps
@@ -229,6 +237,11 @@ class COVIDVaccinationOCPr:
         _, pvector_names = parameters.get_pvector()
 
         dt = (N + 1) / N / n_int_steps
+
+        if objective == 'death':
+            ellID = 1
+        elif objective == 'infection':
+            ellID = 0
 
         states = cat.struct_symSX(states_names)
         [S1, S2, S3, S4, S5, E, P, I, A, Q, H, R, V] = states[...]
@@ -243,17 +256,17 @@ class COVIDVaccinationOCPr:
         [deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV,
          scale_ell, scale_If, scale_v] = params[...]
 
-        pop_nodeSX = ca.SX.sym('pop_node')
+        pop_nodeSX = cat.struct_symSX([f'popnode_{i}' for i in np.arange(1, 5+1)])
 
         p_foiSX = cat.struct_symSX(['Cii', 'betaP', 'betaR', 'epsilonI', 'epsilonA'])
 
         # The rhs is at time zero, the time is also no used in the equation so that explain
-        rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX, p_foiSX.cat)
+        rhs, rhs_ell = rhs_py(0, states.cat, controls.cat, covar.cat, params.cat, mob, pop_nodeSX.cat, p_foiSX.cat)
         rhs = ca.veccat(*rhs)
         rhs_ell = ca.veccat(*rhs_ell)  # mod
 
         frhs = ca.Function('frhs', [states, controls, covar, params, pop_nodeSX, p_foiSX],
-                           [rhs, rhs_ell[1]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
+                           [rhs, rhs_ell[ellID]])  # scale_ell * rhs_ell[1] + scale_v * v * v])# mod ICI juste ell[1]
 
         # ---- dynamic constraints --------
         if integ == 'rk4':
@@ -276,14 +289,18 @@ class COVIDVaccinationOCPr:
 
         x_ = ca.veccat(*states[...])
         u_ = ca.veccat(*controls[...])
-        VacPpl = states['S'] + states['E'] + states['P'] + states['A'] + states['R']
+        VacPpl = states['S1'] + states['S2'] + states['S3'] + states['S4'] + states['S5'] + states['E'] + states['P'] + states['A'] + states['R']
         vaccrate = controls['v'] / VacPpl #  + 1e-10)
-        x_[0] -= vaccrate * states['S']
-        x_[1] -= vaccrate * states['E']
-        x_[2] -= vaccrate * states['P']
-        x_[4] -= vaccrate * states['A']
-        x_[7] -= vaccrate * states['R']
-        x_[8] += controls['v']
+        x_[0] -= vaccrate * states['S1']
+        x_[1] -= vaccrate * states['S2']
+        x_[2] -= vaccrate * states['S3']
+        x_[3] -= vaccrate * states['S4']
+        x_[4] -= vaccrate * states['S5']
+        x_[5] -= vaccrate * states['E']
+        x_[6] -= vaccrate * states['P']
+        x_[7] -= vaccrate * states['A']
+        x_[8] -= vaccrate * states['R']
+        x_[9] += controls['v']
 
         ell = 0.
         for k in range(n_int_steps):
@@ -329,7 +346,8 @@ class COVIDVaccinationOCPr:
             np.fill_diagonal(C, np.zeros_like(C.diagonal()))
 
             # Should this be k+1 ? to have the foi mobility.
-            Sk, Ek, Pk, Rk, Ak, Ik, Vk = ca.veccat(*self.Vars['x', :, k, 'S']), ca.veccat(*self.Vars['x', :, k, 'E']), \
+            Sk, Ek, Pk, Rk, Ak, Ik, Vk = ca.veccat(*self.Vars['x', :, k, 'S1'])+ca.veccat(*self.Vars['x', :, k, 'S2'])+ca.veccat(*self.Vars['x', :, k, 'S3'])+ca.veccat(*self.Vars['x', :, k, 'S4']) + ca.veccat(*self.Vars['x', :, k, 'S5']),  \
+                                         ca.veccat(*self.Vars['x', :, k, 'E']), \
                                          ca.veccat(*self.Vars['x', :, k, 'P']), ca.veccat(*self.Vars['x', :, k, 'R']), \
                                          ca.veccat(*self.Vars['x', :, k, 'A']), ca.veccat(*self.Vars['x', :, k, 'I']), \
                                          ca.veccat(*self.Vars['x', :, k, 'V'])
@@ -357,13 +375,13 @@ class COVIDVaccinationOCPr:
                                        ca.veccat(self.Vars['u', i, k],
                                                  self.Params['cov', i, k],
                                                  self.Params['p'],
-                                                 self.setup.pop_node[i],
+                                                 self.setup.pop_node_agpost[i],
                                                  p_foi))
 
                 dyn[k].append(self.Vars['x', i, k + 1] - X_)
                 ell_ik_, cases_ik, reg_ik = ell(self.Vars['x', i, k], self.Vars['u', i, k], self.Params['cov', i, k],
                                                 self.Params['p'],
-                                                self.setup.pop_node[i],
+                                                self.setup.pop_node_agpost[i],
                                                 p_foi)
                 f += ell_ik_  # MOD: before  ell_ik_
                 cases += cases_ik
@@ -374,7 +392,7 @@ class COVIDVaccinationOCPr:
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
-                VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S', 'E', 'P', 'A', 'R'])
+                VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S1','S2','S3','S4','S5', 'E', 'P', 'A', 'R'])
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)
@@ -468,7 +486,10 @@ class COVIDVaccinationOCPr:
         # Set initial conditions as constraints
         for cp, name in enumerate(states_names):
             for i in range(self.M):
-                lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i, cp]
+                if 'S' in name:
+                    lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0_Sagpost[i, cp]
+                else:
+                    lbx['x', i, 0, name] = ubx['x', i, 0, name] = parameters.x0[i, cp-4]
 
         # ----> Starting value of the optimizer
         init = self.Vars(0)

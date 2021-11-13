@@ -1,6 +1,6 @@
 import numpy as np
 from ItalySetup import ItalySetupProvinces
-from covidOCP import COVIDVaccinationOCPagpost as COVIDVaccinationOCP
+from covidOCP import COVIDVaccinationOCPagpost as COVIDVaccinationOCPagpost
 from covidOCP import COVIDParametersOCP
 import pickle
 import matplotlib.pyplot as plt
@@ -19,27 +19,29 @@ nc = 1
 @click.option("-s", "--scenario_id", "scn_ids", default=1, help="Index of scenario to run")
 @click.option("-n", "--nnodes", "nnodes", default=107, envvar="OCP_NNODES", help="Spatial model size to run")
 @click.option("-t", "--ndays", "ndays", default=20, envvar="OCP_NDAYS", help="Number of days to run")
-@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=True, show_default=True,
+@click.option("--use_matlab", "use_matlab", envvar="OCP_MATLAB", type=bool, default=False, show_default=True,
               help="whether to use matlab for the current run")
-@click.option("-a", "--age_struct", "age_struct", type=bool, default=False, show_default=True,
-              help="Whether to use agestructured OCP")
 @click.option("-f", "--file_prefix", "file_prefix", envvar="OCP_PREFIX", type=str, default='test',
               show_default=True, help="file prefix to add to identify the current set of runs.")
 @click.option("-d", "--output_directory", "outdir", envvar="OCP_OUTDIR", type=str, default='model_output/',
               show_default=True, help="Where to write runs")
 @click.option("-o", "--optimize", "optimize", type=bool, default=True, show_default=True, help="Whether to optimize")
-def cli(scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize):
+@click.option("-a", "--objective", "objective", type=str, default='infection', show_default=True,
+              help="Whether to use agestructured OCP")
+def cli(scn_ids, nnodes, ndays, use_matlab, file_prefix, outdir, optimize, objective):
     if not isinstance(scn_ids, list):
         scn_ids = [int(scn_ids)]
-    return scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize
+    return scn_ids, nnodes, ndays, use_matlab, file_prefix, outdir, optimize, objective
 
 
 if __name__ == '__main__':
     # standalone_mode: so click doesn't exit, see
     # https://stackoverflow.com/questions/60319832/how-to-continue-execution-of-python-script-after-evaluating-a-click-cli-function
-    scn_ids, nnodes, ndays, use_matlab, age_struct, file_prefix, outdir, optimize = cli(standalone_mode=False)
+    scn_ids, nnodes, ndays, use_matlab, file_prefix, outdir, optimize, objective = cli(standalone_mode=False)
     os.makedirs(outdir, exist_ok=True)
     # scn_ids = np.arange(18)
+
+    assert (objective == 'infection' or objective == 'death')
 
     # All arrays here are (nnodes, ndays, (nx))
     setup = ItalySetupProvinces(nnodes, ndays, when)
@@ -65,6 +67,7 @@ if __name__ == '__main__':
         use_matlab: {use_matlab}
         when?  {when}
         rk_steps: {n_int_steps}
+        obj: {objective}
         ---> Saving results to prefix: {prefix}""")
 
         p.apply_epicourse(setup, scenario['beta_mult'])
@@ -72,7 +75,7 @@ if __name__ == '__main__':
 
         control_initial = np.zeros((M, N))
 
-        results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+        results, state_initial, yell_death, yell_infection, mob = COVIDVaccinationOCPagpost.integrate(N,
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
@@ -81,13 +84,14 @@ if __name__ == '__main__':
                                                                           n_rk4_steps=n_int_steps)
 
         if optimize and ocp is None:
-            ocp = COVIDVaccinationOCP.COVIDVaccinationOCP(N=N, n_int_steps=n_int_steps,
+            ocp = COVIDVaccinationOCPagpost.COVIDVaccinationOCPagpost(N=N, n_int_steps=n_int_steps,
                                                           setup=setup, parameters=p,
-                                                          show_steps=False)
+                                                          show_steps=False,
+                                                          objective=objective)
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario, strategy=yell.sum(axis=1))
 
-        results, state_initial, yell, mob = COVIDVaccinationOCP.integrate(N,
+        results, state_initial, yell_death, yell_infection, mob = COVIDVaccinationOCPagpost.integrate(N,
                                                                           setup=setup,
                                                                           parameters=p,
                                                                           controls=control_initial,
@@ -101,6 +105,6 @@ if __name__ == '__main__':
                        states_initial=state_initial,
                        control_initial=control_initial,
                        mob_initial=mob,
-                       scenario_name=f'{outdir}{prefix}-opt-{nnodes}_{ndays}')
+                       scenario_name=f'{outdir}{prefix}-{objective}-opt-{nnodes}_{ndays}')
 
             ocp.solveOCP()
