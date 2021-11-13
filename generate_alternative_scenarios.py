@@ -13,6 +13,7 @@ from scenarios_utils import pick_scenario, build_scenario
 import pandas as pd
 import multiprocessing as mp
 import tqdm
+from collections import ChainMap
 
 # Replace the jupyter notebook that was based on matlab called generate_all_scn.
 
@@ -155,7 +156,7 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
     fname = f"{input_directory}/{input_prefix}-{scenario_name}-opt-{nnodes}_{ndays_ocp}.csv"
     optimal_df = pd.read_csv(fname, index_col='date', parse_dates=True)
     optimal_alloc = optimal_df[optimal_df['comp'] == 'vacc'][['value', 'placeID']].pivot(columns='placeID', values='value').T
-    optimal_alloc_array = optimal_alloc.sort_index().to_numpy()
+    optimal_alloc_array = optimal_alloc.sort_index().to_numpy()[:,:-1]
     alt_strat = AlternativeStrategy(setup,
                                     scenario,
                                     'optimal',
@@ -170,6 +171,28 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
 
     print(f'generated {len(alt_strategies.keys())} strategies: {list(alt_strategies.keys())} for scenario {scenario_name}')
     return alt_strategies
+
+def worker_create_strategies(post_real, scenario_name, scenario, alt_strategies):
+    # create object here so not shared:
+    with open(f'italy-data/full_posterior/setup_{nnodes}_{when}.pkl', 'rb') as inp:
+        setup = pickle.load(inp)
+    #setup = ItalySetupProvinces(nnodes, ndays, when)
+    with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
+        p = pickle.load(inp)
+    p.apply_epicourse(setup, scenario['beta_mult'])
+
+    alt_strategies_arrs = {}
+    for shortname, strat in alt_strategies.items():
+        tic = time.time()
+        results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                                                                               setup=setup,
+                                                                               parameters=p,
+                                                                               controls=None,
+                                                                               save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
+                                                                               only_yell=True,
+                                                                               alloc_strat=strat)
+        alt_strategies_arrs[shortname] = {'array':strat.alloc_arr,'name':strat.name}
+    return {scenario_name: alt_strategies_arrs}
 
 def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_strategies):
     tic1 = time.time()
@@ -186,23 +209,33 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
     p.apply_epicourse(setup, scenario['beta_mult'])
 
     all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
-
     for shortname, strat in alt_strategies.items():
         tic = time.time()
-        results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(len(setup.model_days) - 1,
-                                                                               setup=setup,
-                                                                               parameters=p,
-                                                                               controls=None,
-                                                                               save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
-                                                                               only_yell=True,
-                                                                               alloc_strat=strat)
+        if isinstance(strat, AlternativeStrategy):
+            results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                                                                                   setup=setup,
+                                                                                   parameters=p,
+                                                                                   controls=None,
+                                                                                   save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
+                                                                                   only_yell=True,
+                                                                                   alloc_strat=strat)
+            strat_name = strat.name
+        else:
+            print(strat['array'].shape)
+            results, state_initial, yell, = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                                                                                   setup=setup,
+                                                                                   parameters=p,
+                                                                                   controls=strat['array'],
+                                                                                   save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
+                                                                                   only_yell=True,
+                                                                                   alloc_strat=None)
+            strat_name = strat['name']
         yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date').sum().sum()
-        vacc_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place', index='date').sum().sum()
-
+        vacc_tot = results[results['comp'] == 'vacc'].pivot(values='value', columns='place', index='date').sum().sum()
 
         all_results = pd.concat([all_results, pd.DataFrame.from_dict(
             {'method_short': [shortname],
-             'method': [strat.name],
+             'method': [strat_name],
              'infected': [yell_tot],
              'post_sample': [post_real],
              'doses': [vacc_tot],
@@ -213,7 +246,7 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
              'newdoseperweek': [int(scenario_name.split('-')[2][1:])]
              })])
 
-        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s, with compute a new strat set as {strat.compute_new_strat}")
+        print(f"{scenario_name}, {post_real}, {shortname} done in {time.time()-tic} s. vacc:{vacc_tot}, yell:{yell_tot}")
 
     print(f"{scenario_name}, {post_real} done in {time.time()-tic1} seconds")
     return all_results
@@ -249,22 +282,30 @@ if __name__ == '__main__':
         alt_strategies[scenario_name] = create_all_alt_strategies(setup_shared, scenario_name, scenario)
 
     print("computing all scenarios on realization 102, the median realization, to construct all the alternative strategies")
-    results_scn = pool.starmap(worker_one_posterior_realization, [(102, scenario_name, scenario, alt_strategies[scenario_name]) for scenario_name, scenario in scenarios.items()])
-    all_results.append(pd.concat(results_scn))
+    alt_strategies_all_arrs = pool.starmap(worker_create_strategies, [(102, scenario_name, scenario, alt_strategies[scenario_name]) for scenario_name, scenario in scenarios.items()])
+    # flatten the list of dics:
+    alt_strategies_all_arrs = dict(ChainMap(*alt_strategies_all_arrs))
 
+    # this does not work for some reason: mainly because these objects are not modified inside the above // thread from some reasaons
+    #for shortname, strat in alt_strategies[scenario_name].items():
+    #    strat.compute_new_strat = False
 
     for scenario_name, scenario in scenarios.items():
         print(f'>>> Doing scenario {scenario_name}')
-        for shortname, strat in alt_strategies[scenario_name].items():
-            strat.compute_new_strat = False
         results_scn = pool.starmap(worker_one_posterior_realization,
-                        [(post_real, scenario_name, copy.deepcopy(scenario), copy.deepcopy(alt_strategies[scenario_name])) for post_real in np.arange(1, 101+1)])
+                        [(post_real,
+                          scenario_name,
+                          copy.deepcopy(scenario),
+                          #None, #alt_strategies[scenario_name]
+                          alt_strategies_all_arrs[scenario_name]) for post_real in np.arange(1, 102+1)])
         all_results.append(pd.concat(results_scn))
+        print(all_results)
 
     all_results = pd.concat(all_results)
+    print(all_results)
     all_results.to_csv(f'{output_directory}/{output_prefix}-ALL.csv', index=False)
 
-    print(f"Terminating succesfuly in {(time.time() - tic1)/3600} hours")
+    print(f"Terminating succesfuly in {(time.time() - tic)/3600} hours")
 
 
 
