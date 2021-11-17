@@ -392,7 +392,7 @@ class COVIDVaccinationOCPagpost:
                 # with constraints that spatial and dyn are equal to zero
                 # thus imposing the dynamics and coupling.
                 spatial[k].append(self.Vars['u', i, k, 'mob'] - mob_ik)
-                VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S1','S2','S3','S4','S5', 'E', 'P', 'A', 'R'])
+                VacPpl = sum(self.Vars['x', i, k, comp] for comp in ['S1', 'S2' 'S3', 'S4', 'S5', 'E', 'P', 'A', 'R'])
                 # Sgeq0[k].append(self.Vars['x', i, k, 'S'] - self.Vars['u', i, k, 'v'] / (VacPpl + 1e-10))
                 Sgeq0[k].append(VacPpl - self.Vars['u', i, k, 'v'])
                 # Number of vaccine spent = num of vaccine rate * 7 (number of days)

@@ -9,7 +9,7 @@ import sys, os
 from scenarios_utils import pick_scenario, build_scenario
 
 when = 'future-mobintime'
-n_int_steps = 50
+n_int_steps = 1
 ocp = None
 nc = 1
 
@@ -88,8 +88,6 @@ if __name__ == '__main__':
                                                           objective=objective)
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario, strategy=yell_infection.sum(axis=1))
-
-        control_initial = np.zeros((M, N))
 
         results, state_initial, yell_death, yell_infection, mob = COVIDVaccinationOCPagpost.integrate(N,
                                                                           setup=setup,
