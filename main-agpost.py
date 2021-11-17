@@ -8,8 +8,6 @@ import click
 import sys, os
 from scenarios_utils import pick_scenario, build_scenario
 
-nx = 9
-states_names = ['S', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
 when = 'future-mobintime'
 n_int_steps = 50
 ocp = None

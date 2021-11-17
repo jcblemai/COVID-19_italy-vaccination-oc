@@ -5,7 +5,7 @@
 #SBATCH --mem 180G          # Per node
 #SBATCH --time 12-0          #J-H:m:s
 #SBATCH --array=0-15          # Index are choosen by me (can relaunch) before 0-1
-#SBATCH --qos=week         # Echo is authorized to launch week-long job
+#SBATCH --qos=fortnight         # Echo is authorized to launch week-long job
 
 N=${SLURM_ARRAY_TASK_ID}
 
