@@ -91,6 +91,8 @@ if __name__ == '__main__':
 
         maxvaccrate_regional, delivery_national, stockpile_national_constraint, control_initial = build_scenario(setup, scenario, strategy=yell_infection.sum(axis=1))
 
+        control_initial = np.zeros((M, N))
+
         results, state_initial, yell_death, yell_infection, mob = COVIDVaccinationOCPagpost.integrate(N,
                                                                           setup=setup,
                                                                           parameters=p,
