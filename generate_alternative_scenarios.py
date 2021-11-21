@@ -31,14 +31,17 @@ output_prefix = f'altstratint'
 nnodes = 107  # nodes
 ndays_ocp = 90
 ndays = 90
-pool = mp.Pool(mp.cpu_count())
+
 
 #setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
 
 os.makedirs(f'{output_directory}', exist_ok=True)
 
 
-def greedy_worker_per_province(nd, setup, alloc_arr, remains_to_allocate_this_week, maxvaccrate_regional, unvaccinated, k):
+def greedy_worker_per_province(nd, setup, scenario, alloc_arr, remains_to_allocate_this_week, maxvaccrate_regional, unvaccinated, k):
+    with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_102.pkl', 'rb') as inp:
+        p = pickle.load(inp)
+    p.apply_epicourse(setup, scenario['beta_mult'])
     to_allocate = maxvaccrate_regional[nd] * 7
     to_allocate = min(to_allocate, unvaccinated[nd], remains_to_allocate_this_week)
     test_allocation = np.copy(alloc_arr)
@@ -104,9 +107,6 @@ class AlternativeStrategy:
             self.alloc_arr = np.ones((self.M, self.ndays-1)) * -1 # to be filled
 
     def computeGreedyStrat(self, setup, scenario):
-        with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_102.pkl', 'rb') as inp:
-            p = pickle.load(inp)
-        p.apply_epicourse(setup, scenario['beta_mult'])
         tic = time.time()
         alloc_arr = np.zeros((self.M, self.ndays - 1))
         print('Computing Greedy')
@@ -119,6 +119,7 @@ class AlternativeStrategy:
                 all_yell = pool.starmap(greedy_worker_per_province,
                              [(nd,
                                setup,
+                               scenario,
                                alloc_arr,
                                remains_to_allocate_this_week,
                                self.maxvaccrate_regional,
@@ -347,7 +348,8 @@ pick = 'r15-'
 scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
 print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 
-
+pool = mp.Pool(mp.cpu_count()) # https://stackoverflow.com/questions/36533134/cant-get-attribute-abc-on-module-main-from-abc-h-py
+# ^ needs to be declared after worker functions
 
 if __name__ == '__main__':
     all_results = []
