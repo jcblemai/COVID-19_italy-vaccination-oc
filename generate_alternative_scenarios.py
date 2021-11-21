@@ -79,8 +79,50 @@ class AlternativeStrategy:
         if alloc_arr is not None:
             self.alloc_arr = alloc_arr
             self.compute_new_strat = False
+        elif decision_variable == 'Greedy':
+            self.alloc_arr = self.computeGreedyStrat(setup, scenario)
+            self.compute_new_strat = False
         else:
             self.alloc_arr = np.ones((self.M, self.ndays-1)) * -1 # to be filled
+
+    def computeGreedyStrat(self, setup, scenario):
+        with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_102.pkl', 'rb') as inp:
+            p = pickle.load(inp)
+        p.apply_epicourse(setup, scenario['beta_mult'])
+        tic = time.time()
+        alloc_arr = np.zeros((self.M, self.ndays - 1))
+        print('Computing Greedy')
+        for k in tqdm.tqdm(np.arange(0, self.ndays - 1, 7)): # every week
+            remains_to_allocate_this_week = self.delivery_national[0]  # delivery national is staircase, 0 there is a delivery.
+            while remains_to_allocate_this_week > 1:
+                # Find node to allocate:
+                min_ell_reduction = np.inf
+                node2allocate  = -1
+                for nd, nname in enumerate(setup.ind2name):
+                    to_allocate = self.maxvaccrate_regional[nd]*7
+                    to_allocate = min(to_allocate, self.unvaccinated[nd],remains_to_allocate_this_week)
+                    test_allocation = np.copy(alloc_arr)
+                    test_allocation[nd,k:k+7] = to_allocate/7
+                    results, _, yell = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                                                                       setup=setup,
+                                                                       parameters=p,
+                                                                       controls=test_allocation,
+                                                                       save_to=None,
+                                                                       only_yell=True,
+                                                                       alloc_strat=None)
+                    yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place',
+                                                                    index='date').sum().sum()
+                    if yell_tot < min_ell_reduction:
+                        min_ell_reduction = yell_tot
+                        node2allocate = nd
+
+                to_allocate = min(self.maxvaccrate_regional[node2allocate]*7, self.unvaccinated[node2allocate],remains_to_allocate_this_week)
+                alloc_arr[node2allocate,k:k+7] = to_allocate/7
+                remains_to_allocate_this_week -= to_allocate
+                self.unvaccinated[node2allocate] -= to_allocate
+                print(f'loop done, {node2allocate}, {setup.ind2name[node2allocate]}, {to_allocate}')
+        print(f"Max Int computed in  {time.time()-tic:.1f}")
+        return alloc_arr
 
     def focused_alloc(self, decision_df_sorted, nd, nodename):
         return self.maxvaccrate_regional[nd]
@@ -163,6 +205,13 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
                                     alloc_arr=optimal_alloc_array)
     alt_strategies[alt_strat.shortname] = alt_strat
 
+
+    alt_strat = AlternativeStrategy(setup,
+                                    scenario,
+                                    'Greedy')
+    alt_strategies[alt_strat.shortname] = alt_strat
+
+
     alt_strat = AlternativeStrategy(setup,
                                     scenario,
                                     'novacc')
@@ -188,8 +237,8 @@ def worker_create_strategies(post_real, scenario_name, scenario, alt_strategies)
                                                                                setup=setup,
                                                                                parameters=p,
                                                                                controls=None,
-                                                                               save_to=None,#f'{output_directory}/{output_prefix}-{scenario_name}-{shortname}-{post_real}',
-                                                                               only_yell=True,
+                                                                               save_to=f'{output_directory}/{input_prefix}-{scenario_name}-{shortname}-{post_real}',
+                                                                               only_yell=False,
                                                                                alloc_strat=strat)
         alt_strategies_arrs[shortname] = {'array':strat.alloc_arr,'name':strat.name}
     return {scenario_name: alt_strategies_arrs}
