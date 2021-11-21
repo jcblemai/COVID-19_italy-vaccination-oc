@@ -91,6 +91,7 @@ class AlternativeStrategy:
         p.apply_epicourse(setup, scenario['beta_mult'])
         tic = time.time()
         alloc_arr = np.zeros((self.M, self.ndays - 1))
+        return alloc_arr
         print('Computing Greedy')
         for k in tqdm.tqdm(np.arange(0, self.ndays - 1, 7)): # every week
             remains_to_allocate_this_week = self.delivery_national[0]  # delivery national is staircase, 0 there is a delivery.
@@ -120,7 +121,7 @@ class AlternativeStrategy:
                 alloc_arr[node2allocate,k:k+7] = to_allocate/7
                 remains_to_allocate_this_week -= to_allocate
                 self.unvaccinated[node2allocate] -= to_allocate
-                print(f'loop done, {node2allocate}, {setup.ind2name[node2allocate]}, {to_allocate}')
+                print(f'loop done, {node2allocate}, {setup.ind2name[node2allocate]}, alloc:{to_allocate}, unvac:{self.unvaccinated[node2allocate]}')
         print(f"Max Int computed in  {time.time()-tic:.1f}")
         return alloc_arr
 
