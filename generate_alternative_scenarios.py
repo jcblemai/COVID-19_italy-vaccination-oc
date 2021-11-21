@@ -31,10 +31,28 @@ output_prefix = f'altstratint'
 nnodes = 107  # nodes
 ndays_ocp = 90
 ndays = 90
+pool = mp.Pool(mp.cpu_count())
 
 #setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
 
 os.makedirs(f'{output_directory}', exist_ok=True)
+
+
+def greedy_worker_per_province(nd, setup, alloc_arr, remains_to_allocate_this_week, maxvaccrate_regional, unvaccinated, k):
+    to_allocate = maxvaccrate_regional[nd] * 7
+    to_allocate = min(to_allocate, unvaccinated[nd], remains_to_allocate_this_week)
+    test_allocation = np.copy(alloc_arr)
+    test_allocation[nd, k:k + 7] = to_allocate / 7
+    results, _, yell = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                                                              setup=setup,
+                                                              parameters=p,
+                                                              controls=test_allocation,
+                                                              save_to=None,
+                                                              only_yell=True,
+                                                              alloc_strat=None)
+    yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place',
+                                                        index='date').sum().sum()
+    return yell_tot
 
 class AlternativeStrategy:
     def __init__(self, setup, scenario, decision_variable, alloc_function=None, dv_per_pop=False, require_projection=False, alloc_arr=None):
@@ -91,31 +109,40 @@ class AlternativeStrategy:
         p.apply_epicourse(setup, scenario['beta_mult'])
         tic = time.time()
         alloc_arr = np.zeros((self.M, self.ndays - 1))
-        return alloc_arr
         print('Computing Greedy')
         for k in tqdm.tqdm(np.arange(0, self.ndays - 1, 7)): # every week
             remains_to_allocate_this_week = self.delivery_national[0]  # delivery national is staircase, 0 there is a delivery.
             while remains_to_allocate_this_week > 1:
                 # Find node to allocate:
-                min_ell_reduction = np.inf
-                node2allocate  = -1
-                for nd, nname in enumerate(setup.ind2name):
-                    to_allocate = self.maxvaccrate_regional[nd]*7
-                    to_allocate = min(to_allocate, self.unvaccinated[nd],remains_to_allocate_this_week)
-                    test_allocation = np.copy(alloc_arr)
-                    test_allocation[nd,k:k+7] = to_allocate/7
-                    results, _, yell = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
-                                                                       setup=setup,
-                                                                       parameters=p,
-                                                                       controls=test_allocation,
-                                                                       save_to=None,
-                                                                       only_yell=True,
-                                                                       alloc_strat=None)
-                    yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place',
-                                                                    index='date').sum().sum()
-                    if yell_tot < min_ell_reduction:
-                        min_ell_reduction = yell_tot
-                        node2allocate = nd
+                #min_ell_reduction = np.inf
+                #node2allocate  = -1
+                all_yell = pool.starmap(greedy_worker_per_province,
+                             [(nd,
+                               setup,
+                               alloc_arr,
+                               remains_to_allocate_this_week,
+                               self.maxvaccrate_regional,
+                               self.unvaccinated,
+                               k) for nd, nname in enumerate(setup.ind2name)])
+
+                #for nd, nname in enumerate(setup.ind2name):
+                #    to_allocate = self.maxvaccrate_regional[nd]*7
+                #    to_allocate = min(to_allocate, self.unvaccinated[nd],remains_to_allocate_this_week)
+                #    test_allocation = np.copy(alloc_arr)
+                #    test_allocation[nd,k:k+7] = to_allocate/7
+                #    results, _, yell = COVIDVaccinationOCP.accurate_integrate(setup.ndays - 1,
+                #                                                       setup=setup,
+                #                                                       parameters=p,
+                #                                                       controls=test_allocation,
+                #                                                       save_to=None,
+                #                                                       only_yell=True,
+                #                                                       alloc_strat=None)
+                #    yell_tot = results[results['comp'] == 'yell'].pivot(values='value', columns='place',
+                #                                                    index='date').sum().sum()
+                #    if yell_tot < min_ell_reduction:
+                #        min_ell_reduction = yell_tot
+                #        node2allocate = nd
+                node2allocate = all_yell.index(min(all_yell))
 
                 to_allocate = min(self.maxvaccrate_regional[node2allocate]*7, self.unvaccinated[node2allocate],remains_to_allocate_this_week)
                 alloc_arr[node2allocate,k:k+7] = to_allocate/7
@@ -321,7 +348,7 @@ scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
 print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 
 
-pool = mp.Pool(mp.cpu_count())
+
 if __name__ == '__main__':
     all_results = []
     tic = time.time()
