@@ -225,6 +225,172 @@ def integrate(N, setup, parameters, controls, n_rk4_steps=10, method='rk4', save
     return results, y, yell_infection, yell_death, mob
 
 
+def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_yell=False, alloc_strat=None):
+    #print(f"===> Integrating for {save_to}. Not pruned mob and not the same dim as usual.")
+    M = setup.nnodes
+    from scipy.integrate import solve_ivp
+    pvector, pvector_names = parameters.get_pvector()
+    deltaE, deltaP, sigma, eta, gammaI, gammaA, gammaQ, gammaH, alphaI, alphaH, zeta, gammaV = pvector[0], pvector[1], \
+                                                                                               pvector[2], pvector[3], \
+                                                                                               pvector[4], pvector[5], \
+                                                                                               pvector[6], pvector[7], \
+                                                                                               pvector[8], pvector[9], \
+                                                                                               pvector[10], pvector[11]
+    betaP0 = parameters.params_structural['betaP0']
+    epsilonA, epsilonI = parameters.params_structural['epsilonA'], parameters.params_structural['epsilonI']
+
+    y = np.zeros((N + 1, nx+2, M))
+    for cp, name in enumerate(states_names):
+        for i in range(M):
+            if 'S' in name:
+                y[0, cp, i] = parameters.x0_Sagpost[i, cp]
+            else:
+                y[0, cp, i] = parameters.x0[i, cp - 4]
+
+
+    if controls is None:
+        controls = np.zeros((M,N))
+
+    pop_node = np.array(setup.pop_node_agpost).T
+
+    pop_node1, pop_node2, pop_node3, pop_node4, pop_node5 = pop_node[0], pop_node[1], pop_node[2], pop_node[3], pop_node[4]
+    pop_node = pop_node1 + pop_node2 + pop_node3 + pop_node4 + pop_node5
+
+    def rhs_full_network(t, x):
+        rhs = np.zeros((nx + 2, M))
+        x = np.reshape(x, (nx + 2, M))
+        today = int(t)  # floor equivalent
+        mobK = setup.mobintime_arr[:, today]
+        C = parameters.params_structural['r'] * parameters.mobfrac.flatten() * mobK * parameters.mobmat
+        np.fill_diagonal(C, 1 - C.sum(axis=1) + C.diagonal())
+        betaR = parameters.betaratiointime_arr[:, today]
+        # find
+        S1, S2, S3, S4, S5, E, P, I, A, Q, H, R, V = x[0], x[1], x[2], x[3], x[4], x[5], x[6], x[7], x[8], x[9], x[10], \
+                                                     x[11], x[12]
+        S = S1 + S2 + S3 + S4 + S5
+
+        foi = C @ ((C.T @ (betaP0 * betaR * (P + epsilonA * A)) + epsilonI * betaP0 * betaR * I) / (
+                C.T @ (S + E + P + R + A + V) + I))
+        #rhs[0] = -foi * S  # + gammaV * V  # S
+        rhs[5] = foi * S - deltaE * E  # E
+        rhs[6] = deltaE * E - deltaP * P  # P
+        rhs[7] = sigma * deltaP * P - (eta + gammaI) * I  # I alphaI
+        rhs[8] = (1 - sigma) * deltaP * P - gammaA * A  # A
+        rhs[9] = zeta * eta * I - gammaQ * Q  # Q
+        rhs[10] = (1 - zeta) * eta * I - (gammaH + alphaH) * H  # H
+        rhs[11] = gammaI * I + gammaA * A + gammaH * H + gammaQ * Q  # R
+        rhs[12] = 0  # - gammaV * V  # V
+
+        p1 = S1 / S * 12.13 / 100 * pop_node / pop_node1
+        p2 = S2 / S * 24.23 / 100 * pop_node / pop_node2
+        p3 = S3 / S * 33.92 / 100 * pop_node / pop_node3
+        p4 = S4 / S * 19.58 / 100 * pop_node / pop_node4
+        p5 = S5 / S * 10.14 / 100 * pop_node / pop_node5
+
+        p = p1 + p2 + p3 + p4 + p5
+        p1 /= p
+        p2 /= p
+        p3 /= p
+        p4 /= p
+        p5 /= p
+
+        E1 = foi * S * p1
+        E2 = foi * S * p2
+        E3 = foi * S * p3
+        E4 = foi * S * p4
+        E5 = foi * S * p5
+        rhs[0] = -E1
+        rhs[1] = -E2
+        rhs[2] = -E3
+        rhs[3] = -E4
+        rhs[4] = -E5
+        rhs[13] = foi * S  # total expositions
+        rhs[14] = 0.01/100*E1+0.04/100*E2+0.43/100*E3+6.06/100*E4+20.83/100*E5  # total deaths
+
+        return np.reshape(rhs, rhs.size)
+
+    for k in range(N):
+        x_ = np.copy(y[k])
+        x_[-1,:] = 0 # reset yell
+        x_[-2, :] = 0  # reset yell
+        S1, S2, S3, S4, S5, E, P, I, A, Q, H, R, V = np.arange(nx)
+
+        VacPpl = y[k, S1, :] + y[k, S2, :] + y[k, S3, :] + y[k, S4, :] + y[k, S5, :]+ y[k, E, :] + y[k, P, :] + y[k, A, :] + y[k, R, :]
+
+        # Get control from strategy
+        if alloc_strat is None:
+            control_k = controls[:, k]
+        else:
+            if alloc_strat.compute_new_strat:
+                if alloc_strat.require_projection:
+                    x_alt = np.reshape(x_, x_.size)
+                    sol = solve_ivp(rhs_full_network, [k, N], x_alt, t_eval=[N])
+                    sol = np.reshape(sol.y, (nx + 2, M))
+                    # because yell is not reseted, this is really commulative incindece till date.
+                    control_k = alloc_strat.get_today_allocation(k, susceptible=sol[S1]+sol[S2]+sol[S3]+sol[S4]+sol[S5], incidence=sol[-2], death=sol[-1])
+                else:
+                    control_k = alloc_strat.get_today_allocation(k, susceptible=x_[S1]+x_[S2]+x_[S3]+x_[S4]+x_[S5], incidence=x_[-2], death=x_[-1])
+            else:
+                control_k = alloc_strat.get_today_allocation(k)
+            controls[:, k] = control_k
+
+        # Apply control
+        vaccrate = control_k / (VacPpl + 1e-10)
+        x_[S1, :] -= vaccrate * y[k, S1, :]
+        x_[S2, :] -= vaccrate * y[k, S2, :]
+        x_[S3, :] -= vaccrate * y[k, S3, :]
+        x_[S4, :] -= vaccrate * y[k, S4, :]
+        x_[S5, :] -= vaccrate * y[k, S5, :]
+        x_[E, :] -= vaccrate * y[k, E, :]
+        x_[P, :] -= vaccrate * y[k, P, :]
+        x_[A, :] -= vaccrate * y[k, A, :]
+        x_[R, :] -= vaccrate * y[k, R, :]
+        x_[V, :] += control_k
+
+        # Solve the integration
+        x_ = np.reshape(x_, x_.size)
+        sol = solve_ivp(rhs_full_network, [k, k+1], x_,  t_eval=[k+1])
+        y[k + 1] = np.reshape(sol.y, (nx+2, M))
+
+    results = pd.DataFrame(columns=['date', 'comp', 'place', 'value', 'placeID'])
+    yell_death = y[:, -1, :]
+    yell_infection = y[:, -2, :]
+    for nd in range(M):
+        results = pd.concat(
+            [results,
+             pd.DataFrame.from_dict(
+                {'value': np.append(controls[nd, :], controls[nd, -1]).ravel(),
+                 'date': setup.model_days,
+                 'place': setup.ind2name[nd],
+                 'placeID': int(nd),
+                 'comp': 'vacc'}),
+             pd.DataFrame.from_dict(
+                 {'value': yell_death[:, nd],
+                  'date': setup.model_days,
+                  'place': setup.ind2name[nd],
+                  'placeID': int(nd),
+                  'comp': 'yell_death'}),
+             pd.DataFrame.from_dict(
+                 {'value': yell_infection[:, nd],
+                  'date': setup.model_days,
+                  'place': setup.ind2name[nd],
+                  'placeID': int(nd),
+                  'comp': 'yell_infection'})
+             ])
+        if not only_yell:
+            for i, st in enumerate(states_names):
+                results = pd.concat(
+                    [results, pd.DataFrame.from_dict({'value': y[:, i, nd].ravel(),
+                                                      'date': setup.model_days,
+                                                      'place': setup.ind2name[nd],
+                                                      'placeID': int(nd),
+                                                      'comp': st})])
+    results['placeID'] = results['placeID'].astype(int)
+
+    if save_to is not None:
+        results.to_csv(f'{save_to}.csv', index=False)
+    return results, y, yell_infection, yell_death
+
 class COVIDVaccinationOCPagpost:
     def __init__(self, N, n_int_steps, setup, parameters, integ='rk4', show_steps=True, objective='death'):
         timer_start = timer()
