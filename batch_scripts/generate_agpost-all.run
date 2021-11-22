@@ -22,8 +22,8 @@ export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_rt.so
 
 # If one job per node
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
-srun python -u generate_alternative_scenarios.py ${SLURM_ARRAY_TASK_ID} death > ${F_DIR}out_infection${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
+srun python -u generate_alternative_scenarios_agpost.py ${SLURM_ARRAY_TASK_ID} death > ${F_DIR}out_infection${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
 wait
-srun python -u generate_alternative_scenarios.py ${SLURM_ARRAY_TASK_ID} infection > ${F_DIR}out_death${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
+srun python -u generate_alternative_scenarios_agpost.py ${SLURM_ARRAY_TASK_ID} infection > ${F_DIR}out_death${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
 
 wait  # so it waits for both
