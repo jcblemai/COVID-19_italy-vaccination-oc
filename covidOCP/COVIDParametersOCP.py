@@ -166,7 +166,6 @@ def get_parameters_from_matlab(eng, s, model_size):
 
     return p, mobile_frac, mobility_matrix, beta_ratio, x0
 
-
 def params_to_vector(p):
     plist = []
     for key in p.keys():

@@ -32,15 +32,22 @@ nnodes = 107  # nodes
 ndays_ocp = 90
 ndays = 90
 
+import sys
+scenario_to_do = sys.argv[len(sys.argv) -1]
+
+print(f"doing scenario {scenario_to_do}")
+
 
 #setup_ocp = ItalySetupProvinces(nnodes, ndays_ocp, when)
 
 os.makedirs(f'{output_directory}', exist_ok=True)
 
 
-def greedy_worker_per_province(nd, setup, scenario, alloc_arr, remains_to_allocate_this_week, maxvaccrate_regional, unvaccinated, k):
+def greedy_worker_per_province(nd, scenario, alloc_arr, remains_to_allocate_this_week, maxvaccrate_regional, unvaccinated, k):
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_102.pkl', 'rb') as inp:
         p = pickle.load(inp)
+    with open(f'italy-data/full_posterior/setup_{nnodes}_{when}.pkl', 'rb') as inp:
+        setup = pickle.load(inp)
     p.apply_epicourse(setup, scenario['beta_mult'])
     to_allocate = maxvaccrate_regional[nd] * 7
     to_allocate = min(to_allocate, unvaccinated[nd], remains_to_allocate_this_week)
@@ -118,7 +125,6 @@ class AlternativeStrategy:
                 #node2allocate  = -1
                 all_yell = pool.starmap(greedy_worker_per_province,
                              [(nd,
-                               setup,
                                scenario,
                                alloc_arr,
                                remains_to_allocate_this_week,
@@ -348,6 +354,10 @@ pick = 'r15-'
 scenarios = {k:v for (k,v) in scenarios.items() if pick in k}
 print(f'doing {len(scenarios)}: {list(scenarios.keys())}')
 
+scenarios = {k:v for (k,v) in scenarios.items() if f'id{scenario_to_do}' in k}
+
+print(f'selecting {len(scenarios)}: {list(scenarios.keys())}')
+
 pool = mp.Pool(mp.cpu_count()) # https://stackoverflow.com/questions/36533134/cant-get-attribute-abc-on-module-main-from-abc-h-py
 # ^ needs to be declared after worker functions
 
@@ -380,7 +390,7 @@ if __name__ == '__main__':
 
     all_results = pd.concat(all_results)
     print(all_results)
-    all_results.to_csv(f'{output_directory}/{output_prefix}-ALL.csv', index=False)
+    all_results.to_csv(f'{output_directory}/{output_prefix}-{scenario_name}-ALL.csv', index=False)
 
     print(f"Terminating succesfuly in {(time.time() - tic)/3600:.2f} hours")
 
