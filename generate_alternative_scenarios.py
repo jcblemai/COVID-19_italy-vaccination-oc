@@ -119,6 +119,8 @@ class AlternativeStrategy:
         print('Computing Greedy')
         for k in tqdm.tqdm(np.arange(0, self.ndays - 1, 7)): # every week
             remains_to_allocate_this_week = self.delivery_national[0]  # delivery national is staircase, 0 there is a delivery.
+            node2process = copy.deepcopy(setup.ind2name)
+
             while remains_to_allocate_this_week > 10:
                 # Find node to allocate:
                 #min_ell_reduction = np.inf
@@ -130,7 +132,7 @@ class AlternativeStrategy:
                                remains_to_allocate_this_week,
                                self.maxvaccrate_regional,
                                self.unvaccinated,
-                               k) for nd, nname in enumerate(setup.ind2name)])
+                               k) for nd, nname in enumerate(node2process)])
 
                 #for nd, nname in enumerate(setup.ind2name):
                 #    to_allocate = self.maxvaccrate_regional[nd]*7
@@ -155,7 +157,8 @@ class AlternativeStrategy:
                 alloc_arr[node2allocate,k:k+7] = to_allocate/7
                 remains_to_allocate_this_week -= to_allocate
                 self.unvaccinated[node2allocate] -= to_allocate
-                print(f'loop done, {node2allocate}, {setup.ind2name[node2allocate]}, alloc:{to_allocate}, unvac:{self.unvaccinated[node2allocate]}')
+                node2process.remove(setup.ind2name[node2allocate])
+                print(f'loop done, {len(node2process)} {node2allocate}, {setup.ind2name[node2allocate]}, alloc:{to_allocate}, unvac:{self.unvaccinated[node2allocate]}')
         print(f"Max Int computed in  {time.time()-tic:.1f}")
         return alloc_arr
 
