@@ -152,6 +152,7 @@ class AlternativeStrategy:
                 #        min_ell_reduction = yell_tot
                 #        node2allocate = nd
                 node2allocate = all_yell.index(min(all_yell))
+                node2allocate = setup.ind2name.index(node2process[node2allocate])
 
                 to_allocate = min(self.maxvaccrate_regional[node2allocate]*7, self.unvaccinated[node2allocate],remains_to_allocate_this_week)
                 alloc_arr[node2allocate,k:k+7] = to_allocate/7
