@@ -25,7 +25,7 @@ when = 'future-mobintime'
 input_directory = 'helvetios-runs/2021-11-17-107_90'
 input_prefix = f'week'
 # to output the now files
-output_directory = 'model_output/2021-11-18-sensitivity'
+output_directory = 'model_output/2021-11-23-sensitivity'
 output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
@@ -182,7 +182,7 @@ class AlternativeStrategy:
         alloc_now = np.zeros(self.M)
 
         if 'focused' in self.name:
-            this_round = self.delivery_national[0]/3 # focuses on 3 days a week
+            this_round = self.delivery_national[0]/7
             for nodename in decision_variable_df.index:
                 nd = self.ind2name.index(nodename)
                 to_allocate = self.maxvaccrate_regional[nd]
@@ -231,10 +231,10 @@ class AlternativeStrategy:
 
 def create_all_alt_strategies(setup, scenario_name, scenario):
     alt_strategies = {}
-    #alt_strat = AlternativeStrategy(setup,
-    #                                scenario,
-    #                                'Greedy')
-    #alt_strategies[alt_strat.shortname] = alt_strat
+    alt_strat = AlternativeStrategy(setup,
+                                    scenario,
+                                    'Greedy')
+    alt_strategies[alt_strat.shortname] = alt_strat
 
     # create scenarios
     decisions_variables = ['susceptible', 'population', 'incidence']
@@ -295,7 +295,6 @@ def worker_create_strategies(post_real, scenario_name, scenario, alt_strategies)
     return {scenario_name: alt_strategies_arrs}
 
 def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_strategies):
-    post_real = 102
     tic1 = time.time()
 
     # create object here so not shared:
@@ -308,8 +307,9 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
         p = pickle.load(inp)
     p.apply_epicourse(setup, scenario['beta_mult'])
-    # shuffle it !!
-    np.random.shuffle(p.betaratiointime_arr)
+    if post_real != 102:
+        # shuffle it !!
+        np.random.shuffle(p.betaratiointime_arr)
     all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
     for shortname, strat in alt_strategies.items():
         tic = time.time()

@@ -25,7 +25,7 @@ when = 'future-mobintime'
 input_directory = 'helvetios-runs/2021-11-17-107_90'
 input_prefix = f'week'
 # to output the now files
-output_directory = 'model_output/2021-11-18-fix3'
+output_directory = 'model_output/2021-11-23'
 output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
@@ -182,7 +182,7 @@ class AlternativeStrategy:
         alloc_now = np.zeros(self.M)
 
         if 'focused' in self.name:
-            this_round = self.delivery_national[0]/3 # focuses on 3 days a week
+            this_round = self.delivery_national[0]/7
             for nodename in decision_variable_df.index:
                 nd = self.ind2name.index(nodename)
                 to_allocate = self.maxvaccrate_regional[nd]
@@ -197,7 +197,7 @@ class AlternativeStrategy:
             this_round = self.stockpile
             for nodename in decision_variable_df.index:
                 nd = self.ind2name.index(nodename)
-                to_allocate =  this_round * decision_variable_df.loc[nodename]['value'] / decision_variable_df['value'].sum()
+                to_allocate = this_round * decision_variable_df.loc[nodename]['value'] / decision_variable_df['value'].sum()
                 to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd])
                 alloc_now[nd] = to_allocate
                 self.stockpile        -= to_allocate
