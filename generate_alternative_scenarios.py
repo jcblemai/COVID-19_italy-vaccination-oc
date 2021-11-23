@@ -25,7 +25,7 @@ when = 'future-mobintime'
 input_directory = 'helvetios-runs/2021-11-17-107_90'
 input_prefix = f'week'
 # to output the now files
-output_directory = 'model_output/2021-11-18-fix'
+output_directory = 'model_output/2021-11-18-fix2'
 output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
