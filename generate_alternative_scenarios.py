@@ -25,7 +25,7 @@ when = 'future-mobintime'
 input_directory = 'helvetios-runs/2021-11-17-107_90'
 input_prefix = f'week'
 # to output the now files
-output_directory = 'model_output/2021-11-17'
+output_directory = 'model_output/2021-11-18-fix'
 output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
@@ -119,7 +119,7 @@ class AlternativeStrategy:
         print('Computing Greedy')
         for k in tqdm.tqdm(np.arange(0, self.ndays - 1, 7)): # every week
             remains_to_allocate_this_week = self.delivery_national[0]  # delivery national is staircase, 0 there is a delivery.
-            while remains_to_allocate_this_week > 1:
+            while remains_to_allocate_this_week > 10:
                 # Find node to allocate:
                 #min_ell_reduction = np.inf
                 #node2allocate  = -1
@@ -176,15 +176,28 @@ class AlternativeStrategy:
         decision_variable_df = pd.DataFrame(decision_variable_array, index=self.ind2name, columns=['value'])
         decision_variable_df.sort_values('value', ascending=False, inplace=True)
         alloc_now = np.zeros(self.M)
-        for nodename in decision_variable_df.index:
-            nd = self.ind2name.index(nodename)
-            to_allocate = self.alloc_function(decision_variable_df, nd, nodename)
-            to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd])
-            alloc_now[nd] = to_allocate
-            self.stockpile        -= to_allocate
-            self.unvaccinated[nd] -= to_allocate
-            if self.stockpile <= 1:
-                return alloc_now
+
+        if 'focused' in self.name:
+            this_round = self.delivery_national[0]/6 # focuses on 6 days a week
+            for nodename in decision_variable_df.index:
+                nd = self.ind2name.index(nodename)
+                to_allocate = self.maxvaccrate_regional[nd]
+                to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd], this_round)
+                alloc_now[nd] = to_allocate
+                self.stockpile        -= to_allocate
+                self.unvaccinated[nd] -= to_allocate
+                this_round -= to_allocate
+                if self.stockpile <= 1 or this_round <= 1:
+                    return alloc_now
+        elif 'proportional' in self.name:
+            this_round = self.stockpile
+            for nodename in decision_variable_df.index:
+                nd = self.ind2name.index(nodename)
+                to_allocate =  this_round * decision_variable_df.loc[nodename]['value'] / decision_variable_df['value'].sum()
+                to_allocate = min(to_allocate, self.unvaccinated[nd], self.stockpile, self.maxvaccrate_regional[nd])
+                alloc_now[nd] = to_allocate
+                self.stockpile        -= to_allocate
+                self.unvaccinated[nd] -= to_allocate
         return alloc_now
 
     def get_today_allocation(self, today_idx, susceptible=None, incidence=None):
@@ -213,9 +226,14 @@ class AlternativeStrategy:
 
 
 def create_all_alt_strategies(setup, scenario_name, scenario):
+    alt_strategies = {}
+    alt_strat = AlternativeStrategy(setup,
+                                    scenario,
+                                    'Greedy')
+    alt_strategies[alt_strat.shortname] = alt_strat
+
     # create scenarios
     decisions_variables = ['susceptible', 'population', 'incidence']
-    alt_strategies = {}
     for decision_variable in decisions_variables:
         require_projection = False
         if decision_variable == 'incidence':
@@ -238,12 +256,6 @@ def create_all_alt_strategies(setup, scenario_name, scenario):
                                     scenario,
                                     'optimal',
                                     alloc_arr=optimal_alloc_array)
-    alt_strategies[alt_strat.shortname] = alt_strat
-
-
-    alt_strat = AlternativeStrategy(setup,
-                                    scenario,
-                                    'Greedy')
     alt_strategies[alt_strat.shortname] = alt_strat
 
 
