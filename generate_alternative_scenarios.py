@@ -25,7 +25,7 @@ when = 'future-mobintime'
 input_directory = 'helvetios-runs/2021-11-17-107_90'
 input_prefix = f'week'
 # to output the now files
-output_directory = 'model_output/2021-11-18-fix2'
+output_directory = 'model_output/2021-11-18-fix3'
 output_prefix = f'altstratint'
 
 nnodes = 107  # nodes
@@ -182,7 +182,7 @@ class AlternativeStrategy:
         alloc_now = np.zeros(self.M)
 
         if 'focused' in self.name:
-            this_round = self.delivery_national[0]/6 # focuses on 6 days a week
+            this_round = self.delivery_national[0]/3 # focuses on 3 days a week
             for nodename in decision_variable_df.index:
                 nd = self.ind2name.index(nodename)
                 to_allocate = self.maxvaccrate_regional[nd]
