@@ -1,0 +1,27 @@
+#!/bin/bash -l
+#SBATCH --nodes 1            # Node PER JOB !
+#SBATCH --ntasks-per-node 1  # MPI sense -> just 1.
+#SBATCH --cpus-per-task 28   # No more than the number of CPU in a node. CPU <- coeur dans slurm
+#SBATCH --mem 180G          # Per node
+#SBATCH --time 1-0          #J-H:m:s
+#SBATCH --array=2-13        # Index are choosen by me (can relaunch) before 0-1
+
+N=${SLURM_ARRAY_TASK_ID}
+
+export MDL_DAYS=90
+export MDL_NNODES=107
+export F_DIR="`date +%Y-%m-%d`-${MDL_NNODES}_${MDL_DAYS}sens/"
+export F_PREFIX="week"
+mkdir -p $F_DIR
+
+module purge
+module restore COVID_OCP
+source $HOME/venvs/$SYS_TYPE/bin/activate
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/src/hsl/20190503_${SYS_TYPE}/lib
+export LD_PRELOAD=$MKLROOT/lib/intel64/libmkl_rt.so
+
+# If one job per node
+export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+srun python -u generate_alternative_scenarios_sensitivity_analysis.py ${SLURM_ARRAY_TASK_ID} > ${F_DIR}out${SLURM_ARRAY_TASK_ID}.txt 2>&1 &
+
+wait  # so it waits for both

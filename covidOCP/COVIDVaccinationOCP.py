@@ -369,6 +369,7 @@ def accurate_integrate(N, setup, parameters, controls=None, save_to=None, only_y
             if alloc_strat.compute_new_strat:
                 if alloc_strat.require_projection:
                     x_alt = np.reshape(x_, x_.size)
+                    # TODO: Does this force it to go through all betas ??? use the max_step option ?
                     sol = solve_ivp(rhs_full_network, [k, N], x_alt, t_eval=[N])
                     sol = np.reshape(sol.y, (nx + 1, M))
                     # because yell is not reseted, this is really commulative incindece till date.
@@ -502,7 +503,7 @@ class COVIDVaccinationOCP:
 
         # cat.dotdraw(x_, figsize=(10, 10))
 
-        # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied ?
+        # BUG TODO Isn't this a double multiplication by the scale parameter since ell is already multiplied
         ell = ca.Function('ell', [states, controls, covar, params, pop_nodeSX, p_foiSX],
                           [scale_ell * ell + scale_v * v * v, scale_ell * ell,
                            scale_v * v * v])  # Very dependent on regularization factor
