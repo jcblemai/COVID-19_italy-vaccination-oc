@@ -14,6 +14,9 @@ import tqdm
 from collections import ChainMap
 
 # Replace the jupyter notebook that was based on matlab called generate_all_scn.
+import sys
+scenario_to_do = sys.argv[len(sys.argv) - 2]
+obj = sys.argv[len(sys.argv) - 1]
 
 nx = 13
 states_names = ['S1', 'S2', 'S3', 'S4', 'S5', 'E', 'P', 'I', 'A', 'Q', 'H', 'R', 'V']
@@ -31,9 +34,6 @@ nnodes = 107  # nodes
 ndays_ocp = 90
 ndays = 90
 
-import sys
-scenario_to_do = sys.argv[len(sys.argv) - 2]
-obj = sys.argv[len(sys.argv) - 1]
 
 print(f"doing scenario {scenario_to_do}, {obj}")
 
