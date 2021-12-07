@@ -52,7 +52,7 @@ def greedy_worker_per_province(nd, scenario, alloc_arr, remains_to_allocate_this
     to_allocate = min(to_allocate, unvaccinated[nd], remains_to_allocate_this_week)
     test_allocation = np.copy(alloc_arr)
     test_allocation[nd, k:k + 7] = to_allocate / 7
-    results, _, yell = COVIDVaccinationOCPagpost.accurate_integrate(setup.ndays - 1,
+    results, _, yell_infection, yell_death = COVIDVaccinationOCPagpost.accurate_integrate(setup.ndays - 1,
                                                               setup=setup,
                                                               parameters=p,
                                                               controls=test_allocation,
