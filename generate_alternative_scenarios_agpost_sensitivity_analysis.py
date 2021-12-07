@@ -23,7 +23,7 @@ when = 'future-mobintime'
 input_directory = f'helvetios-runs/2021-11-18-107_90_AGpost_{obj}'
 input_prefix = f'week'
 # to output the now files
-output_directory = f'model_output/2021-11-23agpost_{obj}'
+output_directory = f'model_output/2021-11-23agpost_{obj}-sensitivity'
 output_prefix = f'altstratint'
 
 
@@ -310,6 +310,9 @@ def worker_one_posterior_realization(post_real, scenario_name, scenario, alt_str
     with open(f'italy-data/full_posterior/parameters_{nnodes}_{when}_{post_real}.pkl', 'rb') as inp:
         p = pickle.load(inp)
     p.apply_epicourse(setup, scenario['beta_mult'])
+    if post_real != 102:
+        # shuffle it !!
+        np.random.shuffle(p.betaratiointime_arr)
 
     all_results = pd.DataFrame(columns=['method_short', 'method', 'infected', 'post_sample', 'doses', 'scenario-beta', 'scenario-rate', 'scenario-tot', 'scenario', 'newdoseperweek'])
     for shortname, strat in alt_strategies.items():
