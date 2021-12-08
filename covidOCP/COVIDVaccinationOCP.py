@@ -194,7 +194,7 @@ def rk4_integrate(y, pvector, mob, pop_node, p_foi, dt):
     k3, k3ell = frhs_integrate(y + dt / 2 * k2, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
     k4, k4ell = frhs_integrate(y + dt * k3, foi=mob, p=pvector, pop_node=pop_node, p_foi=p_foi)
     x_next = y + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-    # No need for because we sum it week by week few lines below.
+    # No need for because we sum it week by week few lines below.f
     ell_next = dt / 6 * (k1ell + 2 * k2ell + 2 * k3ell + k4ell)
 
     return x_next, ell_next
