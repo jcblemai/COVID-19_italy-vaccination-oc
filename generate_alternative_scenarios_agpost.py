@@ -414,14 +414,3 @@ if __name__ == '__main__':
     all_results.to_csv(f'{output_directory}/{output_prefix}-{scenario_name}-{obj}-ALL.csv', index=False)
 
     print(f"Terminating succesfuly in {(time.time() - tic)/3600:.2f} hours")
-
-
-
-
-
-
-
-
-
-
-
