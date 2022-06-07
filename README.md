@@ -1,6 +1,6 @@
 # Optimal control of the spatial allocation of COVID-19 vaccines: Italy as a case study
 
-This repository contains the code associated with the manuscript "Optimal control of the spatial allocation of COVID-19 vaccines: Italy as a case study", by Joseph C. Lemaitre, Damiano Pasetto, Mario Zanon, Enrico Bertuzzo, Lorenzo Mari, Stefano Miccoli, Renato Casagrandi, Marino Gatto, Andrea Rinaldo in PLoS Computational Biology.
+This repository contains the code associated with the manuscript **Optimal control of the spatial allocation of COVID-19 vaccines: Italy as a case study**, by _Joseph C. Lemaitre, Damiano Pasetto, Mario Zanon, Enrico Bertuzzo, Lorenzo Mari, Stefano Miccoli, Renato Casagrandi, Marino Gatto and Andrea Rinaldo_ in PLoS Computational Biology.
 
 The full code, along with the whole commit history from the project inception in June 2020 to the publication in June 2022 is made available, along with serveral unfruitful exploratory trials (using collocation methods, age-based optimizations.
 
