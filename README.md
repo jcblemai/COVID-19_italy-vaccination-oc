@@ -57,10 +57,6 @@ Old version contains:
 - CVO_implicit: implicit force of infection: 1st order approximation of the force of infection to mitigate
 the fact that the relationship between nodes is not taken into account
 - Between ocp_trial and ocp_trial-vector (diff: in vector: loop over time then over nodes, and compute foi once for all nodes. Moreover use matrix multiplication over loop (which I later found that it produced non-structural zero, so this change was undone) )
-- ocp_trial_vector: 
-- ocp_trial_vector-crtl: 
-- ocp_trial_vector-crtl-struct0: 
-- ocp_trial-vector3-JIT: 
 
 ### Results and figure
 First, after optimizing the optimal control for one scenarion (running `main.py`) or multiple scenarios with the batch script, you'd need to generate the alternative strategies outcomes to compare them with the optimal strategy.
@@ -86,12 +82,15 @@ After that, it's all notebooks :
 
 The remaining notebooks display some exploration of age-stratified optimal allocations.
 
-In order to faciliate reproducing results without spending thousand of $ on compute, we include the raw output of optimal allocation used in the manuscript in folder `helvetios-runs/2021-11-17-107_90/` along with Ipopt outputs. This is the output from launching slurm file `batch_script/medium.run`. As such, all notebooks above should run seamlessly in a local folder.
+In order to faciliate reproducing results without spending thousand of $ on compute, we include the raw output of optimal allocation used in the manuscript in folder `helvetios-runs/2021-11-17-107_90/` along with Ipopt outputs. This is the output from launching slurm file `batch_script/medium.run`. As such, all notebooks above should run seamlessly in a local folder. A file is named e.g `week-L-r150-t479700-id15-opt-107_90.csv` where:
+- `week` is the run prefix I've choosed for these runs.
+- `L` means Low transmission (hence optimistic scenario). vs. `U`
+- `r150` is the maximum rate of distribution across italy (logistic constraints). per month in Million
+- `t479700` is the weekly stockpile delivery in doses
+- `id15` is the scenario id (to use later, summarize all the above
+- `opt` means that the allocation is optimal (int when the allocation is the baseline, no vaccine one. It could also be an alternative strategy short name
+- `107_90` means the full problem with all 107 provinces and optimizing 90 days ahead.
 
 Ah, and I almost forgot, use the conda environment in file `environment_cross.yml` (or `environment.yml`if you have the same hardware as me).
 
-
 Feel free to contact me before using this (jo.lemaitresamra[at]gmail.com, I'll be happy to guide you through choices we've made, an to send you the log of the project in time with every exploration.
-
-
-
